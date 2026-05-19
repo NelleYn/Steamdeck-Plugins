@@ -73,6 +73,24 @@ A future iteration will bundle a portable KasmVNC tarball under
 - Guest audio shares the game's PulseAudio sink.
 - Process cleanup is SIGTERM-only; no escalation to SIGKILL on hang.
 
+## Next steps
+
+In rough priority order:
+
+1. `pnpm install && pnpm run build` on a real machine; fix whatever
+   the rollup config complains about.
+2. Bootstrap script that fetches a portable KasmVNC tarball into
+   `DECKY_PLUGIN_RUNTIME_DIR`, so the plugin does not depend on
+   `pacman`-installed binaries on the immutable SteamOS root.
+3. Whitelist + custom-command UI: let the user register their own
+   apps in `apps.json` from the panel.
+4. Audio routing: create a per-session PulseAudio sink for the guest
+   app, optional mute / volume slider in the panel.
+5. Controller-as-mouse: bind the right trackpad to noVNC pointer
+   events via `gamescope_action_binding`.
+6. Measure FPS and CPU overhead while a Vulkan game is running;
+   document the budget honestly.
+
 ## Licence
 
 BSD-3-Clause.
