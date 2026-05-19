@@ -1,0 +1,11 @@
+{
+  "name": "DeckPiP",
+  "author": "NelleYn",
+  "flags": ["_root"],
+  "api_version": 1,
+  "publish": {
+    "tags": ["overlay", "pip", "productivity"],
+    "description": "Picture-in-Picture of arbitrary Linux GUI applications over a running game in Gaming Mode.",
+    "image": ""
+  }
+}
