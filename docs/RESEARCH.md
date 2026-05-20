@@ -96,6 +96,16 @@ URL into a CEF tab.
    `~/.local` or via a Flatpak/AppImage bundle shipped with the
    plugin.
 
+## Side effect: fixes "Discord can't see other apps in Gaming Mode"
+
+Because Discord (when launched through DeckPiP) lives on our private
+`Xvfb :42`, we can place an X-window mirror of the real game on the
+same display via a `pipewiresrc → ximagesink` gstreamer pipeline.
+Discord then enumerates that mirror window through its own X11
+capture path and shares it via Go Live — no `xdg-desktop-portal`
+involvement, which is precisely the piece that's broken in Gaming
+Mode. Full design in [`DISCORD_STREAMING.md`](DISCORD_STREAMING.md).
+
 ## Recommendation
 
 Build a Decky plugin (Path D) with these explicit non-goals for the PoC:

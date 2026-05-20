@@ -25,9 +25,11 @@ DeckPiP exploits that fact:
 4. Steam UI composites the iframe over the game — this is the actual
    "PiP".
 
-See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the feasibility audit
-and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the wiring
-diagram.
+See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the feasibility audit,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the wiring
+diagram, and [`docs/DISCORD_STREAMING.md`](docs/DISCORD_STREAMING.md)
+for the design that lets Discord share the running game in Gaming
+Mode (the standard "Go Live" path is broken there).
 
 ## Layout
 
