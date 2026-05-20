@@ -53,19 +53,46 @@ pnpm run build
 ## Install on a Steam Deck
 
 ```sh
-# from the repo root, copy to the plugin dir
-sudo cp -r . /home/deck/homebrew/plugins/DeckPiP
+# in Desktop Mode, Konsole
+sudo pacman -Sy nodejs pnpm git
+git clone -b claude/steamdeck-gaming-plugin-9YVmO \
+    https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
+cd DeckPiP
+pnpm install
+pnpm run build
+
+# copy to the Decky plugins dir
+sudo mkdir -p /home/deck/homebrew/plugins/DeckPiP
+sudo cp -r . /home/deck/homebrew/plugins/DeckPiP/
+sudo chown -R deck:deck /home/deck/homebrew/plugins/DeckPiP
 sudo systemctl restart plugin_loader
 ```
 
-System dependencies expected on the Deck (not in the base image):
+Then open Quick Access in Gaming Mode → Decky → DeckPiP and click
+**"Install dependencies (pacman)"**. The bundled
+`defaults/install.sh` handles `steamos-readonly disable` + `pacman -S
+tigervnc python-websockify novnc xterm wmctrl` + re-enable. To install
+the host apps you want to mirror, run `flatpak install …` manually.
 
-- `Xvfb` (`xorg-server-xvfb`)
-- `kasmvncserver`
-- the target app you want to mirror
+If you'd rather install dependencies by hand:
 
-A future iteration will bundle a portable KasmVNC tarball under
-`DECKY_PLUGIN_RUNTIME_DIR` so the plugin is self-contained.
+```sh
+sudo steamos-readonly disable
+sudo pacman-key --init && sudo pacman-key --populate
+sudo pacman -S tigervnc python-websockify novnc xterm wmctrl
+sudo steamos-readonly enable
+```
+
+## Features
+
+- Quick Access panel with a list of preset apps
+  (Discord/Telegram/xterm) and one-tap launch.
+- Drag the PiP overlay by its title bar; **opacity slider** (20–100 %);
+  **click-through** toggle so input goes to the game; presets:
+  *small bottom-right*, *medium left*, *fullscreen*.
+- **Audio-only mode** for each app — runs guest in Xvnc with audio,
+  doesn't open the iframe, saves a chunk of CPU.
+- **Dependency self-check / installer** built into the panel.
 
 ## Known gaps (intentional for the PoC)
 
@@ -74,6 +101,7 @@ A future iteration will bundle a portable KasmVNC tarball under
 - One PiP session at a time.
 - Guest audio shares the game's PulseAudio sink.
 - Process cleanup is SIGTERM-only; no escalation to SIGKILL on hang.
+- Hotkey toggle for show/hide is not wired up yet — use the panel.
 
 ## Next steps
 
