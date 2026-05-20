@@ -52,54 +52,62 @@ pnpm run build
 
 ## Install on a Steam Deck
 
-There are three install paths, in increasing order of "I want to do
-this myself":
+> The repository is **private**, so Decky's "Install plugin from URL"
+> won't work (Decky downloads anonymously and would get 404). You
+> need to install from a local checkout. Two paths:
 
-### A. Decky "Install plugin from URL"
+### A. From an existing checkout (recommended)
 
-In Gaming Mode → Quick Access → Decky panel → gear icon →
-**Developer** tab → enable **Developer mode** → **Install plugin from
-URL**, paste:
-
-```
-https://github.com/NelleYn/Steamdeck-Plugins/releases/download/dev/DeckPiP.zip
-```
-
-This zip is rebuilt automatically by GitHub Actions on every push to
-the feature branch (see `.github/workflows/build.yml`).
-
-After install, you still need the system runtime deps. Open the
-DeckPiP panel and tap **"Install dependencies (pacman)"**, or run
-`sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh`
-once in Desktop Mode.
-
-### B. One-shot installer (Desktop Mode)
+Pull the repository to the Deck however you like (clone with a PAT
+via Konsole, copy from another machine over SSH/USB, GitHub Desktop,
+etc.). Then in Desktop Mode → Konsole:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+cd /path/to/Steamdeck-Plugins
+bash setup.sh
 ```
 
-Installs build tools, clones, builds, copies into
-`~/homebrew/plugins/DeckPiP`, runs the deps installer, restarts
-Decky. End-to-end automated.
+`setup.sh` detects it's inside a checkout, installs `nodejs`/`pnpm`/`git`
+if missing, builds the frontend, copies the plugin into
+`~/homebrew/plugins/DeckPiP`, runs `defaults/install.sh` for runtime
+deps (TigerVNC + websockify + noVNC + xterm + wmctrl), and restarts
+Decky.
 
-### C. Manual
+### B. Fresh clone with a GitHub Personal Access Token
+
+Create a fine-grained PAT with **"Contents: read"** on this repo
+(https://github.com/settings/tokens?type=beta), then in Desktop Mode
+→ Konsole:
+
+```sh
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxx
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+    https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh \
+    | bash
+```
+
+The token is forwarded to the inner `git clone` via the URL. Token
+never lands on disk.
+
+### Manual steps (if you'd rather do it yourself)
 
 ```sh
 sudo pacman -Sy nodejs pnpm git
+# clone with your auth method of choice, e.g.:
 git clone -b claude/steamdeck-gaming-plugin-9YVmO \
-    https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
+    https://oauth2:$GITHUB_TOKEN@github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
 cd DeckPiP
 pnpm install && pnpm run build
 
 sudo mkdir -p /home/deck/homebrew/plugins/DeckPiP
-sudo cp -r . /home/deck/homebrew/plugins/DeckPiP/
+sudo cp -r plugin.json main.py defaults dist package.json README.md \
+    /home/deck/homebrew/plugins/DeckPiP/
 sudo chown -R deck:deck /home/deck/homebrew/plugins/DeckPiP
 sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh
 sudo systemctl restart plugin_loader
 ```
 
-To build the same zip Decky consumes (path A) yourself:
+To build the release-format zip for offline use:
 
 ```sh
 bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip

@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
-# DeckPiP one-shot installer.
+# DeckPiP installer.
 #
-# Run in Desktop Mode (Konsole) as the 'deck' user:
-#   bash setup.sh
+# Two supported workflows (the repo is private, so plain anonymous clone won't
+# work).
 #
-# Or, if you trust this branch and just want it on the Deck:
-#   curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+# A. From an already-checked-out copy (simplest, recommended):
+#      cd /path/to/Steamdeck-Plugins
+#      bash setup.sh
+#    The script detects it's inside a checkout (plugin.json + main.py + src/
+#    in the same directory) and skips the clone.
 #
-# Prerequisites:
+# B. With a GitHub Personal Access Token:
+#      export GITHUB_TOKEN=ghp_xxx          # fine-grained PAT, "contents: read" on this repo
+#      curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+#        https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh \
+#        | bash
+#    The PAT is forwarded to the inner git clone via the URL.
+#
+# Prerequisites in both cases:
 #   - Decky Loader already installed (https://decky.xyz)
 #   - Working network connection
 #   - 'deck' user with a sudo password set
@@ -17,12 +27,11 @@ set -euo pipefail
 REPO_URL="https://github.com/NelleYn/Steamdeck-Plugins.git"
 BRANCH="claude/steamdeck-gaming-plugin-9YVmO"
 PLUGIN_DIR="/home/deck/homebrew/plugins/DeckPiP"
-SRC_DIR="${HOME}/.cache/deckpip-build"
+SRC_DIR_DEFAULT="${HOME}/.cache/deckpip-build"
 
 say() { printf '\033[1;36m[deckpip]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[deckpip]\033[0m %s\n' "$*" >&2; exit 1; }
 
-# --- sanity checks --------------------------------------------------------
 [[ "$(id -un)" == "deck" ]] || die "Run as the 'deck' user (Desktop Mode terminal)."
 [[ -d "$HOME/homebrew" ]] || die "Decky Loader not detected. Install from https://decky.xyz first."
 
@@ -40,24 +49,39 @@ if (( ${#need[@]} )); then
     sudo steamos-readonly enable
 fi
 
-# --- 2. fetch sources -----------------------------------------------------
-say "fetching sources into ${SRC_DIR}"
-rm -rf "$SRC_DIR"
-git clone --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC_DIR"
+# --- 2. locate or fetch sources ------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+if [[ -n "$SCRIPT_DIR" \
+      && -f "$SCRIPT_DIR/plugin.json" \
+      && -f "$SCRIPT_DIR/main.py" \
+      && -d "$SCRIPT_DIR/src" ]]; then
+    SRC_DIR="$SCRIPT_DIR"
+    say "using existing checkout at $SRC_DIR"
+else
+    SRC_DIR="$SRC_DIR_DEFAULT"
+    say "fetching sources into $SRC_DIR"
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        REPO_URL_AUTH="https://oauth2:${GITHUB_TOKEN}@github.com/NelleYn/Steamdeck-Plugins.git"
+    else
+        die "Repository is private. Either run this script from an existing checkout, or set GITHUB_TOKEN before running."
+    fi
+    rm -rf "$SRC_DIR"
+    git clone --depth 1 -b "$BRANCH" "$REPO_URL_AUTH" "$SRC_DIR" \
+        || die "git clone failed (check your token's permissions: contents: read on this repo)"
+fi
+
+cd "$SRC_DIR"
 
 # --- 3. build frontend ----------------------------------------------------
 say "building frontend (pnpm)"
-cd "$SRC_DIR"
 pnpm install
 pnpm run build
-
-[[ -f "$SRC_DIR/dist/index.js" ]] || die "Build did not produce dist/index.js"
+[[ -f dist/index.js ]] || die "Build did not produce dist/index.js"
 
 # --- 4. install into Decky plugins dir -----------------------------------
 say "installing into ${PLUGIN_DIR}"
 sudo rm -rf "$PLUGIN_DIR"
 sudo mkdir -p "$PLUGIN_DIR"
-# Copy everything except build-only artifacts
 sudo cp -r \
     plugin.json main.py defaults dist package.json README.md \
     "$PLUGIN_DIR/"
@@ -84,6 +108,5 @@ Next steps:
   5. Try the "xterm (debug)" launcher first; it has no Flatpak dependency.
 
 If the plugin does not appear, check the Decky logs:
-  journalctl --user -u plugin_loader -e
   sudo journalctl -u plugin_loader -e
 EOF
