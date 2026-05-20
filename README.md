@@ -52,6 +52,20 @@ pnpm run build
 
 ## Install on a Steam Deck
 
+**One-shot (recommended).** In Desktop Mode, Konsole:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+```
+
+The script installs `nodejs`/`pnpm`/`git` if missing, clones the
+branch, builds the frontend, copies the plugin to
+`~/homebrew/plugins/DeckPiP`, runs `defaults/install.sh` for the
+runtime deps (TigerVNC + websockify + noVNC + xterm + wmctrl), and
+restarts Decky.
+
+**Manual.** Same steps spelled out:
+
 ```sh
 # in Desktop Mode, Konsole
 sudo pacman -Sy nodejs pnpm git
@@ -61,27 +75,17 @@ cd DeckPiP
 pnpm install
 pnpm run build
 
-# copy to the Decky plugins dir
 sudo mkdir -p /home/deck/homebrew/plugins/DeckPiP
 sudo cp -r . /home/deck/homebrew/plugins/DeckPiP/
 sudo chown -R deck:deck /home/deck/homebrew/plugins/DeckPiP
+sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh
 sudo systemctl restart plugin_loader
 ```
 
 Then open Quick Access in Gaming Mode → Decky → DeckPiP and click
-**"Install dependencies (pacman)"**. The bundled
-`defaults/install.sh` handles `steamos-readonly disable` + `pacman -S
-tigervnc python-websockify novnc xterm wmctrl` + re-enable. To install
-the host apps you want to mirror, run `flatpak install …` manually.
-
-If you'd rather install dependencies by hand:
-
-```sh
-sudo steamos-readonly disable
-sudo pacman-key --init && sudo pacman-key --populate
-sudo pacman -S tigervnc python-websockify novnc xterm wmctrl
-sudo steamos-readonly enable
-```
+**"Install dependencies (pacman)"** if you skipped the bootstrap. To
+install the host apps you want to mirror, run `flatpak install …`
+manually.
 
 ## Features
 
