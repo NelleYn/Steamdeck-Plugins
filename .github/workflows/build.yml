@@ -1,0 +1,58 @@
+name: Build DeckPiP release zip
+
+on:
+  push:
+    branches:
+      - claude/steamdeck-gaming-plugin-9YVmO
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm run build
+
+      - name: Pack DeckPiP.zip
+        run: |
+          set -e
+          rm -rf build-pack
+          mkdir -p build-pack/DeckPiP
+          cp -r plugin.json main.py defaults dist package.json README.md \
+              build-pack/DeckPiP/
+          cd build-pack
+          zip -qr DeckPiP.zip DeckPiP
+          ls -la DeckPiP.zip
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeckPiP
+          path: build-pack/DeckPiP.zip
+
+      - name: Publish / update "dev" prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: Latest dev build
+          prerelease: true
+          body: |
+            Automated build from the feature branch.
+            Direct zip URL for Decky's "Install from URL":
+            https://github.com/${{ github.repository }}/releases/download/dev/DeckPiP.zip
+          files: build-pack/DeckPiP.zip

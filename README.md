@@ -52,28 +52,45 @@ pnpm run build
 
 ## Install on a Steam Deck
 
-**One-shot (recommended).** In Desktop Mode, Konsole:
+There are three install paths, in increasing order of "I want to do
+this myself":
+
+### A. Decky "Install plugin from URL"
+
+In Gaming Mode → Quick Access → Decky panel → gear icon →
+**Developer** tab → enable **Developer mode** → **Install plugin from
+URL**, paste:
+
+```
+https://github.com/NelleYn/Steamdeck-Plugins/releases/download/dev/DeckPiP.zip
+```
+
+This zip is rebuilt automatically by GitHub Actions on every push to
+the feature branch (see `.github/workflows/build.yml`).
+
+After install, you still need the system runtime deps. Open the
+DeckPiP panel and tap **"Install dependencies (pacman)"**, or run
+`sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh`
+once in Desktop Mode.
+
+### B. One-shot installer (Desktop Mode)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
 ```
 
-The script installs `nodejs`/`pnpm`/`git` if missing, clones the
-branch, builds the frontend, copies the plugin to
-`~/homebrew/plugins/DeckPiP`, runs `defaults/install.sh` for the
-runtime deps (TigerVNC + websockify + noVNC + xterm + wmctrl), and
-restarts Decky.
+Installs build tools, clones, builds, copies into
+`~/homebrew/plugins/DeckPiP`, runs the deps installer, restarts
+Decky. End-to-end automated.
 
-**Manual.** Same steps spelled out:
+### C. Manual
 
 ```sh
-# in Desktop Mode, Konsole
 sudo pacman -Sy nodejs pnpm git
 git clone -b claude/steamdeck-gaming-plugin-9YVmO \
     https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
 cd DeckPiP
-pnpm install
-pnpm run build
+pnpm install && pnpm run build
 
 sudo mkdir -p /home/deck/homebrew/plugins/DeckPiP
 sudo cp -r . /home/deck/homebrew/plugins/DeckPiP/
@@ -82,10 +99,11 @@ sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh
 sudo systemctl restart plugin_loader
 ```
 
-Then open Quick Access in Gaming Mode → Decky → DeckPiP and click
-**"Install dependencies (pacman)"** if you skipped the bootstrap. To
-install the host apps you want to mirror, run `flatpak install …`
-manually.
+To build the same zip Decky consumes (path A) yourself:
+
+```sh
+bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
+```
 
 ## Features
 
