@@ -1,16 +1,17 @@
-name: Build DeckPiP release zip
+name: Build DeckPiP
 
 on:
   push:
     branches:
       - claude/steamdeck-gaming-plugin-9YVmO
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  lint-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,33 +20,49 @@ jobs:
         with:
           node-version: "20"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint Python
+        run: ruff check main.py
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
 
       - name: Build frontend
         run: pnpm run build
 
       - name: Pack DeckPiP.zip
+        if: github.event_name != 'pull_request'
         run: |
           set -e
           rm -rf build-pack
           mkdir -p build-pack/DeckPiP
-          cp -r plugin.json main.py defaults dist package.json README.md \
+          cp -r plugin.json main.py defaults dist package.json README.md LICENSE \
               build-pack/DeckPiP/
           cd build-pack
           zip -qr DeckPiP.zip DeckPiP
           ls -la DeckPiP.zip
 
       - name: Upload as workflow artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: DeckPiP
           path: build-pack/DeckPiP.zip
 
       - name: Publish / update "dev" prerelease
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev
@@ -53,6 +70,6 @@ jobs:
           prerelease: true
           body: |
             Automated build from the feature branch.
-            Direct zip URL for Decky's "Install from URL":
-            https://github.com/${{ github.repository }}/releases/download/dev/DeckPiP.zip
+            Repository is private, so this asset is only downloadable
+            when authenticated.
           files: build-pack/DeckPiP.zip

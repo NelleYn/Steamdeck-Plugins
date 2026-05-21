@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC"]
+ignore = [
+    "E501",     # long lines are caught by formatter, not lint
+    "ASYNC109", # timeout kwarg on async fns is handled internally via asyncio.wait_for
+    "ASYNC220", # we deliberately keep subprocess.Popen for long-lived processes we hand off
+    "ASYNC221",
+    "ASYNC222",
+]

@@ -6,13 +6,11 @@ import secrets
 import shlex
 import shutil
 import signal
-import socket
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import decky
-
 
 DEFAULT_APPS = [
     {
@@ -47,7 +45,7 @@ NOVNC_CANDIDATES = [
 ]
 
 
-def _novnc_dir() -> Optional[str]:
+def _novnc_dir() -> str | None:
     for path in NOVNC_CANDIDATES:
         if Path(path, "vnc.html").exists():
             return path
@@ -71,12 +69,12 @@ async def _wait_port(host: str, port: int, timeout: float = 5.0) -> bool:
             with contextlib.suppress(Exception):
                 await writer.wait_closed()
             return True
-        except (ConnectionRefusedError, OSError, asyncio.TimeoutError):
+        except (TimeoutError, ConnectionRefusedError, OSError):
             await asyncio.sleep(0.1)
     return False
 
 
-async def _terminate(proc: Optional[subprocess.Popen], grace: float = 3.0) -> None:
+async def _terminate(proc: subprocess.Popen | None, grace: float = 3.0) -> None:
     """SIGTERM the process group, wait, then SIGKILL if still alive."""
     if proc is None or proc.poll() is not None:
         return
@@ -89,7 +87,7 @@ async def _terminate(proc: Optional[subprocess.Popen], grace: float = 3.0) -> No
     try:
         await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=grace)
         return
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pass
     with contextlib.suppress(ProcessLookupError):
         os.killpg(pgid, signal.SIGKILL)
@@ -104,10 +102,10 @@ class PipSession:
         self.app = app
         self.token = token
         self.audio_only = audio_only
-        self.xvnc: Optional[subprocess.Popen] = None
-        self.guest: Optional[subprocess.Popen] = None
-        self.websockify: Optional[subprocess.Popen] = None
-        self.mirror: Optional[subprocess.Popen] = None
+        self.xvnc: subprocess.Popen | None = None
+        self.guest: subprocess.Popen | None = None
+        self.websockify: subprocess.Popen | None = None
+        self.mirror: subprocess.Popen | None = None
 
     async def start(self) -> None:
         if shutil.which(self.app["command"][0]) is None:
@@ -174,7 +172,7 @@ class PipSession:
         path.chmod(0o600)
         return str(path)
 
-    def url(self) -> Optional[str]:
+    def url(self) -> str | None:
         if self.audio_only:
             return None
         return (
@@ -192,8 +190,8 @@ class PipSession:
 
 
 class Plugin:
-    session: Optional[PipSession] = None
-    _lock: Optional[asyncio.Lock] = None
+    session: PipSession | None = None
+    _lock: asyncio.Lock | None = None
 
     # ----- helpers ---------------------------------------------------------
 
@@ -278,7 +276,7 @@ class Plugin:
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             return {"ok": False, "error": "timeout"}
         return {
@@ -332,7 +330,7 @@ class Plugin:
 
     # ----- Discord GameMirror ----------------------------------------------
 
-    async def _find_gamescope_pw_node(self) -> Optional[str]:
+    async def _find_gamescope_pw_node(self) -> str | None:
         proc = await asyncio.create_subprocess_exec(
             "pw-cli", "ls", "Node",
             stdout=asyncio.subprocess.PIPE,
@@ -341,7 +339,7 @@ class Plugin:
         stdout, _ = await proc.communicate()
         if proc.returncode != 0:
             return None
-        current_id: Optional[str] = None
+        current_id: str | None = None
         for line in stdout.decode(errors="replace").splitlines():
             line = line.strip()
             if line.startswith("id "):
