@@ -11,35 +11,49 @@ permissions:
   contents: write
 
 jobs:
-  lint-and-build:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Install ruff + pytest
+        run: pip install ruff pytest pytest-asyncio
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Lint
+        run: ruff check .
 
-      - name: Lint Python
-        run: ruff check main.py
+      - name: Test
+        run: python -m pytest tests/ -v
 
-      - name: Install JS dependencies
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm exec tsc --noEmit
+        run: pnpm run typecheck
 
-      - name: Build frontend
+      - name: Test
+        run: pnpm test
+
+      - name: Build
         run: pnpm run build
 
       - name: Pack DeckPiP.zip
@@ -48,7 +62,8 @@ jobs:
           set -e
           rm -rf build-pack
           mkdir -p build-pack/DeckPiP
-          cp -r plugin.json main.py defaults dist package.json README.md LICENSE \
+          cp -r plugin.json main.py deckpip defaults dist \
+              package.json README.md LICENSE \
               build-pack/DeckPiP/
           cd build-pack
           zip -qr DeckPiP.zip DeckPiP
