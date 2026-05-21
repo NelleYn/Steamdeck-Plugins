@@ -1,6 +1,18 @@
 # DeckPiP — Feasibility Research
 
-Status: research notes for the PoC. Last reviewed 2026-05-19.
+Status: research notes for the PoC. Last reviewed 2026-05-21.
+
+## Legend for claims
+
+- **[ASSUMED]** — taken from upstream code / docs / community reports,
+  not yet exercised on real hardware in this project.
+- **[VERIFIED]** — exercised end-to-end on a real Steam Deck during
+  the PoC; behaviour matches the claim.
+- **[RULED OUT]** — investigated and rejected as a path forward;
+  reasons documented below.
+
+Nothing in this document is **[VERIFIED]** yet — the PoC is at the
+scaffolding stage. Statuses will be filled in as we test on hardware.
 
 ## Goal
 
@@ -43,13 +55,17 @@ URL into a CEF tab.
 
 ## Paths considered
 
-| # | Path | Verdict |
-|---|---|---|
-| A | Second XWayland (`--xwayland-count 2`) + launch app on `DISPLAY=:1` | Works as fullscreen toggle, not true PiP. Fallback only. |
-| B | Nested gamescope-in-gamescope | Outer compositor still won't PiP the inner one (same #288). Rejected. |
-| C | Custom Vulkan layer wrapping `vkQueuePresentKHR`, render captured frames as a textured quad on top of the game | True PiP, huge engineering effort, separate input-routing problem (uinput), conflicts with HDR/WSI. Rejected for PoC. |
-| **D** | **Steam CEF tab + `Xvfb`/KasmVNC bridge to the target app** | **Chosen.** No Gamescope modification, generalizes "any Linux GUI", proven pattern (see Deckcord, DeckWebBrowser). |
-| E | Hotswap focus via `gamescopectl` | Not PiP — toolbar-only fallback. |
+| # | Path | Status | Verdict |
+|---|---|---|---|
+| A | Second XWayland (`--xwayland-count 2`) + launch app on `DISPLAY=:1` | [ASSUMED] | Works as fullscreen toggle, not true PiP. Fallback only. |
+| B | Nested gamescope-in-gamescope | [RULED OUT] | Outer compositor still won't PiP the inner one (same #288). |
+| C | Custom Vulkan layer wrapping `vkQueuePresentKHR`, render captured frames as a textured quad on top of the game | [RULED OUT] | True PiP, huge engineering effort, separate input-routing problem (uinput), conflicts with HDR/WSI. |
+| **D** | **Steam CEF tab + `Xvnc` (TigerVNC, was KasmVNC) bridge to the target app** | **[ASSUMED]** | **Chosen.** No Gamescope modification, generalizes "any Linux GUI", proven pattern (see Deckcord, DeckWebBrowser). |
+| E | Hotswap focus via `gamescopectl` | [ASSUMED] | Not PiP — toolbar-only fallback. |
+
+Note: Path D originally specified KasmVNC for the encoder; switched
+to TigerVNC's `Xvnc` because TigerVNC is in the SteamOS pacman repos
+while KasmVNC requires a vendored tarball.
 
 ## Prior art we lean on
 
