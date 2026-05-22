@@ -82,3 +82,21 @@ def test_non_list_custom_apps_ignored(tmp_path: Path) -> None:
     store = SettingsStore(tmp_path)
     store.set("custom_apps", "garbage")
     assert [a["id"] for a in all_apps(store)] == [a["id"] for a in DEFAULT_APPS]
+
+
+def test_label_length_limit(tmp_path: Path) -> None:
+    store = SettingsStore(tmp_path)
+    res = add_custom_app(store, "x1", "A" * 1024, "true")
+    assert res == {"ok": False, "error": "label_too_long"}
+
+
+def test_command_length_limit(tmp_path: Path) -> None:
+    store = SettingsStore(tmp_path)
+    res = add_custom_app(store, "x1", "ok", "true " * 1000)
+    assert res == {"ok": False, "error": "command_too_long"}
+
+
+def test_empty_id_rejected(tmp_path: Path) -> None:
+    store = SettingsStore(tmp_path)
+    res = add_custom_app(store, "", "ok", "true")
+    assert res == {"ok": False, "error": "invalid_id"}

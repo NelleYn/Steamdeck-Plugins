@@ -34,3 +34,23 @@ def test_first_match_wins() -> None:
         "\tid 2, type Node/3\n\t\tnode.description = \"gamescope b\"\n"
     )
     assert parse_gamescope_node(out) == "1"
+
+
+def test_prefers_video_class_over_audio() -> None:
+    out = (
+        "\tid 1, type Node/3\n"
+        "\t\tmedia.class = \"Audio/Sink\"\n"
+        "\t\tnode.description = \"gamescope audio\"\n"
+        "\tid 2, type Node/3\n"
+        "\t\tmedia.class = \"Video/Source\"\n"
+        "\t\tnode.description = \"gamescope video\"\n"
+    )
+    assert parse_gamescope_node(out) == "2"
+
+
+def test_falls_back_to_name_match_when_no_video() -> None:
+    out = (
+        "\tid 5, type Node/3\n"
+        "\t\tnode.description = \"gamescope (game session)\"\n"
+    )
+    assert parse_gamescope_node(out) == "5"

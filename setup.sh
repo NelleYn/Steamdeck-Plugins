@@ -82,8 +82,10 @@ pnpm run build
 say "installing into ${PLUGIN_DIR}"
 sudo rm -rf "$PLUGIN_DIR"
 sudo mkdir -p "$PLUGIN_DIR"
+# Strip any local __pycache__ that pytest may have produced.
+find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 sudo cp -r \
-    plugin.json main.py defaults dist package.json README.md \
+    plugin.json main.py deckpip defaults dist package.json README.md LICENSE \
     "$PLUGIN_DIR/"
 sudo chown -R deck:deck "$PLUGIN_DIR"
 

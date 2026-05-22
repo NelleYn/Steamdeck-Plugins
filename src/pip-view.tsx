@@ -17,7 +17,7 @@ export function PipView() {
     e.preventDefault();
     const cur = store.get().geom;
     dragRef.current = { x: e.clientX, y: e.clientY, gx: cur.x, gy: cur.y };
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onDragMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
@@ -37,7 +37,7 @@ export function PipView() {
     e.stopPropagation();
     const cur = store.get().geom;
     resizeRef.current = { x: e.clientX, y: e.clientY, gw: cur.w, gh: cur.h };
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onResizeMove = (e: React.PointerEvent) => {
     if (!resizeRef.current) return;
@@ -94,7 +94,12 @@ export function PipView() {
       >
         DeckPiP{s.clickThrough ? " · click-through" : ""}
       </div>
-      <iframe src={s.url} style={{ flex: 1, border: "none", background: "#000" }} />
+      <iframe
+        src={s.url}
+        sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"
+        referrerPolicy="no-referrer"
+        style={{ flex: 1, border: "none", background: "#000" }}
+      />
       <div
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}

@@ -27,13 +27,16 @@ pnpm run build
 echo "[make-zip] packing"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR/$NAME"
+find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 cp -r \
     plugin.json \
     main.py \
+    deckpip \
     defaults \
     dist \
     package.json \
     README.md \
+    LICENSE \
     "$OUT_DIR/$NAME/"
 
 cd "$OUT_DIR"

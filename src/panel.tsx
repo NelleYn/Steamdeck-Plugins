@@ -120,11 +120,16 @@ export function Content() {
   };
 
   const onOpenWebPip = () => {
-    if (!webUrl.trim()) {
+    const url = webUrl.trim();
+    if (!url) {
       toaster.toast({ title: "DeckPiP", body: "Enter a URL first" });
       return;
     }
-    openRoute(webUrl.trim());
+    if (!/^https?:\/\//i.test(url)) {
+      toaster.toast({ title: "DeckPiP", body: "Only http(s) URLs are allowed" });
+      return;
+    }
+    openRoute(url);
   };
 
   const onToggleMirror = async () => {
@@ -144,7 +149,11 @@ export function Content() {
 
   const onAddApp = async () => {
     if (!newAppLabel.trim() || !newAppCmd.trim()) return;
-    const id = `custom_${Date.now().toString(36)}`;
+    const suffix =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+    const id = `custom_${suffix}`;
     const res = await addCustomApp(id, newAppLabel.trim(), newAppCmd.trim());
     if (!res.ok) {
       toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });

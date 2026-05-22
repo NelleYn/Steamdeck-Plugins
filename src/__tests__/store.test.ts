@@ -53,6 +53,17 @@ describe("createStore", () => {
     expect(s.get().opacity).toBe(42);
   });
 
+  it("hydrate() rejects malformed geom", () => {
+    const s = createStore();
+    const before = s.get().geom;
+    // @ts-expect-error -- intentionally wrong shape
+    s.hydrate({ geom: "not an object" });
+    expect(s.get().geom).toBe(before);
+    // @ts-expect-error -- intentionally missing fields
+    s.hydrate({ geom: { x: 1 } });
+    expect(s.get().geom).toBe(before);
+  });
+
   it("unsubscribe stops further notifications", () => {
     const s = createStore();
     const cb = vi.fn();

@@ -32,6 +32,17 @@ export type Store = {
 
 type PersistFn = (p: Persisted) => void;
 
+function isValidGeom(g: unknown): g is Geom {
+  return (
+    typeof g === "object" &&
+    g !== null &&
+    typeof (g as Geom).x === "number" &&
+    typeof (g as Geom).y === "number" &&
+    typeof (g as Geom).w === "number" &&
+    typeof (g as Geom).h === "number"
+  );
+}
+
 export function createStore(persistFn: PersistFn = () => {}): Store {
   let state: State = { ...DEFAULT_STATE };
   const listeners = new Set<() => void>();
@@ -51,7 +62,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
   const hydrate: Store["hydrate"] = (p) => {
     state = {
       ...state,
-      geom: p.geom ?? state.geom,
+      geom: isValidGeom(p.geom) ? p.geom! : state.geom,
       opacity: typeof p.opacity === "number" ? p.opacity : state.opacity,
       clickThrough: typeof p.clickThrough === "boolean" ? p.clickThrough : state.clickThrough,
     };

@@ -25,6 +25,12 @@ DEFAULT_APPS: list[dict[str, Any]] = [
     },
 ]
 
+# Defensive limits to keep settings.json from being weaponised as a
+# memory hog by a misbehaving frontend or hand-edited config.
+LABEL_MAX = 256
+COMMAND_MAX = 1024
+ID_MAX = 64
+
 
 def _custom_apps(store: SettingsStore) -> list[dict[str, Any]]:
     raw = store.get("custom_apps", []) or []
@@ -38,6 +44,12 @@ def all_apps(store: SettingsStore) -> list[dict[str, Any]]:
 
 
 def add_custom_app(store: SettingsStore, app_id: str, label: str, command: str) -> dict:
+    if not app_id or len(app_id) > ID_MAX:
+        return {"ok": False, "error": "invalid_id"}
+    if len(label) > LABEL_MAX:
+        return {"ok": False, "error": "label_too_long"}
+    if len(command) > COMMAND_MAX:
+        return {"ok": False, "error": "command_too_long"}
     try:
         argv = shlex.split(command)
     except ValueError as exc:

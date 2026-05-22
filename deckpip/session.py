@@ -34,7 +34,7 @@ def novnc_dir() -> str | None:
 
 async def wait_port(host: str, port: int, timeout: float = 5.0) -> bool:
     """Active-wait until TCP port accepts a connection, or give up."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
         try:
@@ -167,3 +167,6 @@ class PipSession:
         for proc in (self.mirror, self.websockify, self.guest, self.xvnc):
             await terminate(proc)
         self.mirror = self.websockify = self.guest = self.xvnc = None
+        # Best-effort cleanup of the per-session VNC password.
+        with contextlib.suppress(FileNotFoundError):
+            (self.runtime_dir / "vncpasswd").unlink()

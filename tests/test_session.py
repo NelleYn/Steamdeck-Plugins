@@ -91,3 +91,23 @@ async def test_terminate_handles_disappeared_proc(monkeypatch: pytest.MonkeyPatc
 async def test_wait_port_returns_false_on_unreachable() -> None:
     # Port 1 is privileged + nothing listens => connect refused.
     assert await wait_port("127.0.0.1", 1, timeout=0.2) is False
+
+
+# ---- vncpasswd cleanup ---------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stop_removes_vncpasswd_file(tmp_path: Path) -> None:
+    app = {"id": "x", "label": "x", "command": ["xterm"]}
+    s = PipSession(app, "abc12345", audio_only=True, runtime_dir=tmp_path)
+    (tmp_path / "vncpasswd").write_bytes(b"hunter2")
+    await s.stop()
+    assert not (tmp_path / "vncpasswd").exists()
+
+
+@pytest.mark.asyncio
+async def test_stop_is_noop_when_vncpasswd_missing(tmp_path: Path) -> None:
+    app = {"id": "x", "label": "x", "command": ["xterm"]}
+    s = PipSession(app, "abc12345", audio_only=True, runtime_dir=tmp_path)
+    # No file present.
+    await s.stop()  # should not raise
