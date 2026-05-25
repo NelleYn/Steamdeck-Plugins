@@ -21,7 +21,9 @@ import {
   checkDeps,
   checkUpdate,
   diagnostics,
+  exportSettings,
   getProfile,
+  importSettings,
   installDeps,
   listApps,
   listBookmarks,
@@ -29,6 +31,7 @@ import {
   removeCustomApp,
   removeProfile,
   runUpdate,
+  setGuestVolume,
   setProfile,
   settingsGet,
   settingsSet,
@@ -120,6 +123,8 @@ export function Content() {
   const [diag, setDiag] = useState<unknown | null>(null);
   const [updateInfo, setUpdateInfo] = useState<unknown | null>(null);
   const [githubToken, setGithubToken] = useState("");
+  const [importPayload, setImportPayload] = useState("");
+  const [guestVolume, setGuestVolumeUi] = useState(100);
 
   useEffect(() => {
     ensureHydrated();
@@ -264,6 +269,47 @@ export function Content() {
     setLocalProfile(null);
   };
 
+  const onExport = async () => {
+    const res = await exportSettings();
+    if (!res.ok || !res.data) {
+      toaster.toast({ title: "DeckPiP", body: "Export failed" });
+      return;
+    }
+    const text = JSON.stringify(res.data, null, 2);
+    setImportPayload(text);
+    try {
+      // navigator.clipboard isn't reliable in Steam UI; show inline instead.
+      await navigator.clipboard?.writeText?.(text);
+      toaster.toast({ title: "DeckPiP", body: "Settings copied to clipboard" });
+    } catch {
+      toaster.toast({ title: "DeckPiP", body: "Settings shown below; copy manually" });
+    }
+  };
+
+  const onImport = async () => {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(importPayload);
+    } catch (e) {
+      toaster.toast({ title: "DeckPiP", body: `Invalid JSON: ${String(e).slice(0, 80)}` });
+      return;
+    }
+    const res = await importSettings(parsed, true);
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok ? "Settings imported (merge)" : `Import failed: ${res.error ?? "?"}`,
+    });
+    if (res.ok) {
+      setBookmarks(await listBookmarks());
+      setApps(await listApps());
+    }
+  };
+
+  const onChangeGuestVolume = async (v: number) => {
+    setGuestVolumeUi(v);
+    await setGuestVolume(v);
+  };
+
   const onSaveAsDefault = async () => {
     const cur = store.get();
     const next: GameProfile = {
@@ -349,6 +395,17 @@ export function Content() {
                 description="Disable drag and resize (anti-fumble)"
                 checked={s.locked}
                 onChange={(v) => store.set({ locked: v })}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <SliderField
+                label="Guest volume"
+                description="Independent of system volume; via pactl on the guest's sink"
+                value={guestVolume}
+                min={0}
+                max={150}
+                step={5}
+                onChange={onChangeGuestVolume}
               />
             </PanelSectionRow>
             <PanelSectionRow>
@@ -589,6 +646,47 @@ export function Content() {
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={onSaveToken}>
             Save token
+          </ButtonItem>
+        </PanelSectionRow>
+
+        <PanelSectionRow>
+          <TextField
+            label="Toggle-visibility hotkey"
+            value={s.hotkeyToggle}
+            onChange={(e) => store.set({ hotkeyToggle: (e.target as HTMLInputElement).value })}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <TextField
+            label="Push-to-talk hotkey"
+            value={s.hotkeyPtt}
+            onChange={(e) => store.set({ hotkeyPtt: (e.target as HTMLInputElement).value })}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField
+            label="Aggressive on low battery"
+            description="Below 20 % on battery: drop opacity, kill mirror"
+            checked={s.lowBattery}
+            onChange={(v) => store.set({ lowBattery: v })}
+          />
+        </PanelSectionRow>
+
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onExport}>
+            Export settings
+          </ButtonItem>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <TextField
+            label="Paste JSON to import"
+            value={importPayload}
+            onChange={(e) => setImportPayload((e.target as HTMLInputElement).value)}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onImport}>
+            Import settings (merge)
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>

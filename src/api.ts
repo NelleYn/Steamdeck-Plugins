@@ -28,6 +28,27 @@ export const stopMirror = callable<[], SimpleResult>("stop_game_mirror");
 
 export const pauseSession = callable<[], SimpleResult>("pause_session");
 export const resumeSession = callable<[], SimpleResult>("resume_session");
+export const setGuestVolume = callable<[percent: number], SimpleResult & { count?: number }>(
+  "set_guest_volume",
+);
+
+export type BatteryState = {
+  present: boolean;
+  percent?: number;
+  status?: string;
+  charging?: boolean;
+  on_battery?: boolean;
+};
+export const batteryState = callable<[], BatteryState>("battery_state");
+
+export const exportSettings = callable<
+  [],
+  { ok: boolean; data?: Record<string, unknown> }
+>("export_settings");
+export const importSettings = callable<
+  [payload: Record<string, unknown>, merge: boolean],
+  SimpleResult
+>("import_settings");
 
 // ----- per-game profiles ---------------------------------------------------
 

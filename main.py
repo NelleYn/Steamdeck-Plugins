@@ -17,6 +17,8 @@ from typing import Any
 import decky
 
 from deckpip.apps import add_custom_app, all_apps, remove_custom_app
+from deckpip.audio import set_guest_volume as _set_guest_volume
+from deckpip.battery import read_state as _battery_read
 from deckpip.bookmarks import (
     add_bookmark as _add_bookmark,
 )
@@ -201,6 +203,30 @@ class Plugin:
                 return {"ok": False, "error": "no_session"}
             self.session.resume()
             return {"ok": True, "paused": False}
+
+    async def set_guest_volume(self, percent: int) -> dict:
+        if self.session is None or self.session.guest is None:
+            return {"ok": False, "error": "no_session"}
+        return await _set_guest_volume(self.session.guest.pid, percent)
+
+    async def battery_state(self) -> dict:
+        return _battery_read()
+
+    async def export_settings(self) -> dict:
+        data = self._get_settings()._load()  # noqa: SLF001 -- intentional snapshot
+        return {"ok": True, "data": data}
+
+    async def import_settings(self, payload: dict, merge: bool = True) -> dict:
+        if not isinstance(payload, dict):
+            return {"ok": False, "error": "invalid_payload"}
+        store = self._get_settings()
+        if merge:
+            current = store._load()  # noqa: SLF001
+            current.update(payload)
+            store._save(current)  # noqa: SLF001
+        else:
+            store._save(payload)  # noqa: SLF001
+        return {"ok": True}
 
     # ----- per-game profiles -----------------------------------------------
 

@@ -2,22 +2,37 @@ import { definePlugin, routerHook, toaster } from "@decky/api";
 import { staticClasses } from "@decky/ui";
 import { FaTv } from "react-icons/fa";
 
-import { getProfile, listApps, pauseSession, ptt as pttCallable, resumeSession } from "./api";
+import {
+  batteryState as batteryStateCallable,
+  getProfile,
+  listApps,
+  pauseSession,
+  ptt as pttCallable,
+  resumeSession,
+} from "./api";
 import { Content, ROUTE, startFromUi } from "./panel";
 import { onAppLifecycle } from "./steam";
 import { ensureHydrated, store } from "./store";
 
-const HOTKEY_TOGGLE = "F10";
-const HOTKEY_PTT = "F12";
+// Decky's toaster is imported lazily so tests don't need to mock it.
+function toasterPort(): ((body: string) => void) | null {
+  try {
+    return (body) => toaster.toast({ title: "DeckPiP", body });
+  } catch {
+    return null;
+  }
+}
+
 const PAUSE_DELAY_MS = 5000;
 
 function installHotkey(): () => void {
   let pttHeld = false;
   const onDown = (e: KeyboardEvent) => {
-    if (e.key === HOTKEY_TOGGLE) {
+    const { hotkeyToggle, hotkeyPtt } = store.get();
+    if (e.key === hotkeyToggle) {
       e.preventDefault();
       store.set({ visible: !store.get().visible }, false);
-    } else if (e.key === HOTKEY_PTT) {
+    } else if (e.key === hotkeyPtt) {
       e.preventDefault();
       if (!pttHeld) {
         pttHeld = true;
@@ -26,7 +41,7 @@ function installHotkey(): () => void {
     }
   };
   const onUp = (e: KeyboardEvent) => {
-    if (e.key === HOTKEY_PTT && pttHeld) {
+    if (e.key === store.get().hotkeyPtt && pttHeld) {
       e.preventDefault();
       pttHeld = false;
       pttCallable("", "release").catch(() => {});
@@ -39,6 +54,40 @@ function installHotkey(): () => void {
     window.removeEventListener("keyup", onUp);
   };
 }
+
+const BATTERY_POLL_MS = 60_000;
+const LOW_BATTERY_THRESHOLD = 20;
+
+/** When the user enables low-battery mode, poll once a minute and apply
+ *  a more conservative overlay (lower opacity, mirror off) once we drop
+ *  below 20 % on battery. */
+function installBatteryWatcher(): () => void {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let applied = false;
+  const tick = async () => {
+    if (!store.get().lowBattery) return;
+    try {
+      const bs = await batteryStateCallable();
+      if (!bs.present) return;
+      const trigger = bs.on_battery && (bs.percent ?? 100) <= LOW_BATTERY_THRESHOLD;
+      if (trigger && !applied) {
+        applied = true;
+        store.set({ opacity: Math.min(store.get().opacity, 40), mirrorOn: false }, false);
+        toasterPort()?.("Low battery — DeckPiP reduced overlay");
+      } else if (!trigger && applied) {
+        applied = false;
+      }
+    } catch {
+      // ignore
+    }
+  };
+  timer = setInterval(tick, BATTERY_POLL_MS);
+  tick();
+  return () => {
+    if (timer) clearInterval(timer);
+  };
+}
+
 
 /**
  * SIGSTOP the Xvnc + guest process group when the overlay has been hidden
@@ -124,6 +173,7 @@ export default definePlugin(() => {
   const removeHotkey = installHotkey();
   const removeAutoLaunch = installAutoLaunch();
   const removePauseScheduler = installPauseScheduler();
+  const removeBatteryWatcher = installBatteryWatcher();
   ensureHydrated();
   return {
     name: "DeckPiP",
@@ -139,6 +189,7 @@ export default definePlugin(() => {
       removeHotkey();
       removeAutoLaunch();
       removePauseScheduler();
+      removeBatteryWatcher();
     },
   };
 });

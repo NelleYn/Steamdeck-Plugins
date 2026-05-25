@@ -6,6 +6,9 @@ export type Persisted = {
   clickThrough: boolean;
   touchMode: boolean;
   locked: boolean;
+  hotkeyToggle: string;
+  hotkeyPtt: string;
+  lowBattery: boolean;
 };
 
 export type State = Persisted & {
@@ -23,6 +26,9 @@ export const DEFAULT_STATE: State = {
   clickThrough: false,
   touchMode: false,
   locked: false,
+  hotkeyToggle: "F10",
+  hotkeyPtt: "F12",
+  lowBattery: false,
   visible: true,
   mirrorOn: false,
 };
@@ -61,6 +67,9 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
         clickThrough: state.clickThrough,
         touchMode: state.touchMode,
         locked: state.locked,
+        hotkeyToggle: state.hotkeyToggle,
+        hotkeyPtt: state.hotkeyPtt,
+        lowBattery: state.lowBattery,
       });
     }
   };
@@ -73,6 +82,10 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
       clickThrough: typeof p.clickThrough === "boolean" ? p.clickThrough : state.clickThrough,
       touchMode: typeof p.touchMode === "boolean" ? p.touchMode : state.touchMode,
       locked: typeof p.locked === "boolean" ? p.locked : state.locked,
+      hotkeyToggle:
+        typeof p.hotkeyToggle === "string" && p.hotkeyToggle ? p.hotkeyToggle : state.hotkeyToggle,
+      hotkeyPtt: typeof p.hotkeyPtt === "string" && p.hotkeyPtt ? p.hotkeyPtt : state.hotkeyPtt,
+      lowBattery: typeof p.lowBattery === "boolean" ? p.lowBattery : state.lowBattery,
     };
     listeners.forEach((l) => l());
   };
