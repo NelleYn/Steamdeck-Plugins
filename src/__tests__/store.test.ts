@@ -32,8 +32,14 @@ describe("createStore", () => {
     s.set({ opacity: 80 });
     expect(persist).toHaveBeenCalledOnce();
     expect(persist).toHaveBeenCalledWith(
-      expect.objectContaining({ opacity: 80, clickThrough: false }),
+      expect.objectContaining({ opacity: 80, clickThrough: false, touchMode: false }),
     );
+  });
+
+  it("hydrates touchMode", () => {
+    const s = createStore();
+    s.hydrate({ touchMode: true });
+    expect(s.get().touchMode).toBe(true);
   });
 
   it("hydrate() merges only known persisted keys", () => {

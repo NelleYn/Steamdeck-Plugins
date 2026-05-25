@@ -1,10 +1,12 @@
 import { useRef } from "react";
 
-import { clamp } from "./presets";
+import { clamp, snapToEdges } from "./presets";
 import { store, useStore } from "./store";
 
-const HEADER_H = 28;
-const RESIZE_HANDLE = 18;
+const HEADER_NORMAL = 28;
+const HEADER_TOUCH = 50;
+const HANDLE_NORMAL = 18;
+const HANDLE_TOUCH = 36;
 
 export function PipView() {
   const s = useStore();
@@ -12,6 +14,9 @@ export function PipView() {
   const resizeRef = useRef<{ x: number; y: number; gw: number; gh: number } | null>(null);
 
   if (!s.visible || !s.url) return null;
+
+  const headerH = s.touchMode ? HEADER_TOUCH : HEADER_NORMAL;
+  const handle = s.touchMode ? HANDLE_TOUCH : HANDLE_NORMAL;
 
   const onDragDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -29,6 +34,9 @@ export function PipView() {
     });
   };
   const onDragUp = () => {
+    if (dragRef.current) {
+      store.set({ geom: snapToEdges(store.get().geom) });
+    }
     dragRef.current = null;
   };
 
@@ -79,7 +87,7 @@ export function PipView() {
         onPointerMove={onDragMove}
         onPointerUp={onDragUp}
         style={{
-          height: HEADER_H,
+          height: headerH,
           background: "linear-gradient(180deg, #2a2a2a, #181818)",
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
           color: "#aaa",
@@ -88,7 +96,7 @@ export function PipView() {
           display: "flex",
           alignItems: "center",
           paddingLeft: 8,
-          fontSize: 12,
+          fontSize: s.touchMode ? 14 : 12,
           userSelect: "none",
         }}
       >
@@ -108,8 +116,8 @@ export function PipView() {
           position: "absolute",
           right: 0,
           bottom: 0,
-          width: RESIZE_HANDLE,
-          height: RESIZE_HANDLE,
+          width: handle,
+          height: handle,
           cursor: "nwse-resize",
           background: "linear-gradient(135deg, transparent 50%, #888 50%)",
         }}

@@ -26,3 +26,41 @@ export const addCustomApp = callable<
 export const removeCustomApp = callable<[id: string], SimpleResult>("remove_custom_app");
 export const startMirror = callable<[], SimpleResult>("start_game_mirror");
 export const stopMirror = callable<[], SimpleResult>("stop_game_mirror");
+
+// ----- per-game profiles ---------------------------------------------------
+
+export type GameProfile = {
+  app_id: string;
+  audio_only?: boolean;
+  auto_launch?: boolean;
+  geom?: { x: number; y: number; w: number; h: number } | null;
+  opacity?: number | null;
+};
+
+export const listProfiles = callable<[], Record<string, GameProfile>>("list_profiles");
+export const getProfile = callable<[appid: string], GameProfile | null>("get_profile");
+export const setProfile = callable<[appid: string, profile: GameProfile], SimpleResult>(
+  "set_profile",
+);
+export const removeProfile = callable<[appid: string], SimpleResult>("remove_profile");
+
+// ----- bookmarks -----------------------------------------------------------
+
+export type Bookmark = { id: string; label: string; url: string };
+
+export const listBookmarks = callable<[], Bookmark[]>("list_bookmarks");
+export const addBookmark = callable<[id: string, label: string, url: string], SimpleResult>(
+  "add_bookmark",
+);
+export const removeBookmark = callable<[id: string], SimpleResult>("remove_bookmark");
+
+// ----- diagnostics + PTT + updater -----------------------------------------
+
+export type Diagnostics = Record<string, unknown>;
+
+export const diagnostics = callable<[], Diagnostics>("diagnostics");
+export const ptt = callable<[key_combo: string, action: "press" | "release" | "key"], SimpleResult>(
+  "ptt",
+);
+export const checkUpdate = callable<[], Record<string, unknown>>("check_update");
+export const runUpdate = callable<[], Record<string, unknown>>("run_update");

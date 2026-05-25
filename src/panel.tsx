@@ -13,12 +13,23 @@ import { FaTimes } from "react-icons/fa";
 
 import {
   AppEntry,
+  Bookmark,
   DepStatus,
+  GameProfile,
+  addBookmark,
   addCustomApp,
   checkDeps,
+  checkUpdate,
+  diagnostics,
+  getProfile,
   installDeps,
   listApps,
+  listBookmarks,
+  removeBookmark,
   removeCustomApp,
+  removeProfile,
+  runUpdate,
+  setProfile,
   startMirror,
   startPip,
   stopMirror,
@@ -27,6 +38,7 @@ import {
 import { friendlyError } from "./errors";
 import { PipView } from "./pip-view";
 import { PRESETS } from "./presets";
+import { getAppName } from "./steam";
 import { ensureHydrated, store, useStore } from "./store";
 
 export const ROUTE = "/deckpip/view";
@@ -39,7 +51,7 @@ function depsLabel(deps: DepStatus | null): string {
   return missing.length === 0 ? "Dependencies OK" : `Missing: ${missing.join(", ")}`;
 }
 
-function openRoute(url: string) {
+export function openRoute(url: string) {
   store.set({ url, visible: true });
   try {
     routerHook.removeRoute(ROUTE);
@@ -51,13 +63,31 @@ function openRoute(url: string) {
   Navigation.CloseSideMenus();
 }
 
-function closeRoute() {
+export function closeRoute() {
   try {
     routerHook.removeRoute(ROUTE);
   } catch {
     // already gone
   }
   store.set({ url: "", visible: true, mirrorOn: false }, false);
+}
+
+/** Used both by the panel UI and by the auto-launch hook in index.tsx. */
+export async function startFromUi(
+  app: AppEntry,
+  audioOnly: boolean,
+): Promise<boolean> {
+  const res = await startPip(app.id, audioOnly);
+  if (!res.ok) {
+    toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });
+    return false;
+  }
+  if (!audioOnly && res.url) {
+    openRoute(res.url);
+  } else {
+    toaster.toast({ title: "DeckPiP", body: `${app.label}: audio-only session running` });
+  }
+  return true;
 }
 
 export function Content() {
@@ -73,14 +103,32 @@ export function Content() {
   const [webUrl, setWebUrl] = useState("");
   const [newAppLabel, setNewAppLabel] = useState("");
   const [newAppCmd, setNewAppCmd] = useState("");
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [newBookmarkLabel, setNewBookmarkLabel] = useState("");
+  const [newBookmarkUrl, setNewBookmarkUrl] = useState("");
+  const [currentAppid, setCurrentAppid] = useState<number | null>(null);
+  const [currentAppName, setCurrentAppName] = useState<string | null>(null);
+  const [profile, setLocalProfile] = useState<GameProfile | null>(null);
+  const [diag, setDiag] = useState<unknown | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<unknown | null>(null);
 
   useEffect(() => {
     ensureHydrated();
     listApps().then(setApps);
     checkDeps().then(setDeps);
+    listBookmarks().then(setBookmarks);
+    // Read current foreground appid out of the store; this is best-effort.
+    const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
+    const aid = w.__DECKPIP_CURRENT_APPID__ ?? null;
+    if (aid) {
+      setCurrentAppid(aid);
+      setCurrentAppName(getAppName(aid));
+      getProfile(String(aid)).then(setLocalProfile);
+    }
   }, []);
 
   const refreshApps = async () => setApps(await listApps());
+  const refreshBookmarks = async () => setBookmarks(await listBookmarks());
 
   const onCheckDeps = async () => setDeps(await checkDeps());
 
@@ -97,18 +145,9 @@ export function Content() {
 
   const onStart = async (app: AppEntry, audioOnly: boolean) => {
     setBusy(true);
-    const res = await startPip(app.id, audioOnly);
+    const ok = await startFromUi(app, audioOnly);
     setBusy(false);
-    if (!res.ok) {
-      toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });
-      return;
-    }
-    setRunning({ id: app.id, label: app.label, audio_only: audioOnly });
-    if (!audioOnly && res.url) {
-      openRoute(res.url);
-    } else {
-      toaster.toast({ title: "DeckPiP", body: `${app.label}: audio-only session running` });
-    }
+    if (ok) setRunning({ id: app.id, label: app.label, audio_only: audioOnly });
   };
 
   const onStop = async () => {
@@ -119,17 +158,17 @@ export function Content() {
     setRunning(null);
   };
 
-  const onOpenWebPip = () => {
-    const url = webUrl.trim();
-    if (!url) {
+  const onOpenWebPip = (url?: string) => {
+    const target = (url ?? webUrl).trim();
+    if (!target) {
       toaster.toast({ title: "DeckPiP", body: "Enter a URL first" });
       return;
     }
-    if (!/^https?:\/\//i.test(url)) {
+    if (!/^https?:\/\//i.test(target)) {
       toaster.toast({ title: "DeckPiP", body: "Only http(s) URLs are allowed" });
       return;
     }
-    openRoute(url);
+    openRoute(target);
   };
 
   const onToggleMirror = async () => {
@@ -167,6 +206,65 @@ export function Content() {
   const onRemoveApp = async (id: string) => {
     await removeCustomApp(id);
     await refreshApps();
+  };
+
+  const onAddBookmark = async () => {
+    if (!newBookmarkLabel.trim() || !newBookmarkUrl.trim()) return;
+    const suffix =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+    const id = `bm_${suffix}`;
+    const res = await addBookmark(id, newBookmarkLabel.trim(), newBookmarkUrl.trim());
+    if (!res.ok) {
+      toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });
+      return;
+    }
+    setNewBookmarkLabel("");
+    setNewBookmarkUrl("");
+    await refreshBookmarks();
+  };
+
+  const onRemoveBookmark = async (id: string) => {
+    await removeBookmark(id);
+    await refreshBookmarks();
+  };
+
+  const onSaveProfile = async (autoLaunch: boolean) => {
+    if (!currentAppid) {
+      toaster.toast({ title: "DeckPiP", body: "No game in foreground" });
+      return;
+    }
+    const cur = store.get();
+    const next: GameProfile = {
+      app_id: profile?.app_id ?? "discord_flatpak",
+      audio_only: profile?.audio_only ?? false,
+      auto_launch: autoLaunch,
+      geom: cur.geom,
+      opacity: cur.opacity,
+    };
+    await setProfile(String(currentAppid), next);
+    setLocalProfile(next);
+    toaster.toast({ title: "DeckPiP", body: "Profile saved" });
+  };
+
+  const onClearProfile = async () => {
+    if (!currentAppid) return;
+    await removeProfile(String(currentAppid));
+    setLocalProfile(null);
+  };
+
+  const onDiagnostics = async () => setDiag(await diagnostics());
+
+  const onCheckUpdate = async () => {
+    const info = await checkUpdate();
+    setUpdateInfo(info);
+    toaster.toast({ title: "DeckPiP", body: JSON.stringify(info).slice(0, 200) });
+  };
+
+  const onRunUpdate = async () => {
+    const res = await runUpdate();
+    toaster.toast({ title: "DeckPiP", body: JSON.stringify(res).slice(0, 200) });
   };
 
   if (running) {
@@ -207,6 +305,14 @@ export function Content() {
               />
             </PanelSectionRow>
             <PanelSectionRow>
+              <ToggleField
+                label="Touch mode"
+                description="Larger drag bar and resize handle"
+                checked={s.touchMode}
+                onChange={(v) => store.set({ touchMode: v })}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
               <SliderField
                 label="Opacity"
                 value={s.opacity}
@@ -231,6 +337,31 @@ export function Content() {
                 Preset: fullscreen
               </ButtonItem>
             </PanelSectionRow>
+
+            {currentAppid && (
+              <>
+                <PanelSectionRow>
+                  <ButtonItem layout="below" onClick={() => onSaveProfile(false)}>
+                    Save preset for {currentAppName ?? `appid ${currentAppid}`}
+                  </ButtonItem>
+                </PanelSectionRow>
+                <PanelSectionRow>
+                  <ToggleField
+                    label="Auto-launch on this game"
+                    description="Start DeckPiP automatically when this game starts"
+                    checked={!!profile?.auto_launch}
+                    onChange={(v) => onSaveProfile(v)}
+                  />
+                </PanelSectionRow>
+                {profile && (
+                  <PanelSectionRow>
+                    <ButtonItem layout="below" onClick={onClearProfile}>
+                      Clear profile
+                    </ButtonItem>
+                  </PanelSectionRow>
+                )}
+              </>
+            )}
           </>
         )}
       </PanelSection>
@@ -275,8 +406,41 @@ export function Content() {
           />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ButtonItem layout="below" onClick={onOpenWebPip}>
+          <ButtonItem layout="below" onClick={() => onOpenWebPip()}>
             Open URL in PiP
+          </ButtonItem>
+        </PanelSectionRow>
+        {bookmarks.length > 0 && (
+          <>
+            {bookmarks.map((bm) => (
+              <PanelSectionRow key={bm.id}>
+                <ButtonItem layout="below" onClick={() => onOpenWebPip(bm.url)}>
+                  {bm.label}
+                </ButtonItem>
+                <ButtonItem layout="below" onClick={() => onRemoveBookmark(bm.id)}>
+                  <FaTimes /> remove
+                </ButtonItem>
+              </PanelSectionRow>
+            ))}
+          </>
+        )}
+        <PanelSectionRow>
+          <TextField
+            label="New bookmark label"
+            value={newBookmarkLabel}
+            onChange={(e) => setNewBookmarkLabel((e.target as HTMLInputElement).value)}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <TextField
+            label="URL"
+            value={newBookmarkUrl}
+            onChange={(e) => setNewBookmarkUrl((e.target as HTMLInputElement).value)}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onAddBookmark}>
+            Save bookmark
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
@@ -314,6 +478,42 @@ export function Content() {
             {installing ? "Installing…" : "Install dependencies (pacman)"}
           </ButtonItem>
         </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onDiagnostics}>
+            Show diagnostics
+          </ButtonItem>
+        </PanelSectionRow>
+        {diag !== null && (
+          <PanelSectionRow>
+            <pre
+              style={{
+                fontSize: 10,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                background: "#111",
+                color: "#ccc",
+                padding: 6,
+                borderRadius: 4,
+                maxHeight: 240,
+                overflow: "auto",
+              }}
+            >
+              {JSON.stringify(diag, null, 2)}
+            </pre>
+          </PanelSectionRow>
+        )}
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onCheckUpdate}>
+            Check for update
+          </ButtonItem>
+        </PanelSectionRow>
+        {updateInfo !== null && (
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={onRunUpdate}>
+              Run update
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
       </PanelSection>
     </>
   );

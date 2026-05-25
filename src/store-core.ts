@@ -4,6 +4,7 @@ export type Persisted = {
   geom: Geom;
   opacity: number;
   clickThrough: boolean;
+  touchMode: boolean;
 };
 
 export type State = Persisted & {
@@ -19,6 +20,7 @@ export const DEFAULT_STATE: State = {
   geom: PRESETS["small-br"],
   opacity: 95,
   clickThrough: false,
+  touchMode: false,
   visible: true,
   mirrorOn: false,
 };
@@ -55,6 +57,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
         geom: state.geom,
         opacity: state.opacity,
         clickThrough: state.clickThrough,
+        touchMode: state.touchMode,
       });
     }
   };
@@ -65,6 +68,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
       geom: isValidGeom(p.geom) ? p.geom! : state.geom,
       opacity: typeof p.opacity === "number" ? p.opacity : state.opacity,
       clickThrough: typeof p.clickThrough === "boolean" ? p.clickThrough : state.clickThrough,
+      touchMode: typeof p.touchMode === "boolean" ? p.touchMode : state.touchMode,
     };
     listeners.forEach((l) => l());
   };

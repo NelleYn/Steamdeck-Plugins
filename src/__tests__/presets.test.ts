@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clamp, PRESETS } from "../presets";
+import { clamp, PRESETS, snapToEdges } from "../presets";
 
 describe("PRESETS", () => {
   it("all presets stay within 0..100 bounds", () => {
@@ -36,5 +36,35 @@ describe("clamp", () => {
   it("clamps width and height to the maximum of 100", () => {
     expect(clamp({ x: 0, y: 0, w: 200, h: 300 }).w).toBe(100);
     expect(clamp({ x: 0, y: 0, w: 200, h: 300 }).h).toBe(100);
+  });
+});
+
+describe("snapToEdges", () => {
+  it("snaps to left edge when within threshold", () => {
+    const out = snapToEdges({ x: 2, y: 50, w: 30, h: 30 });
+    expect(out.x).toBe(0);
+  });
+
+  it("snaps to right edge when within threshold", () => {
+    const out = snapToEdges({ x: 68, y: 50, w: 30, h: 30 });
+    // 100 - 30 = 70, distance to 68 is 2 < threshold 5
+    expect(out.x).toBe(70);
+  });
+
+  it("snaps to horizontal center", () => {
+    const out = snapToEdges({ x: 36, y: 50, w: 30, h: 30 });
+    // (100-30)/2 = 35
+    expect(out.x).toBe(35);
+  });
+
+  it("leaves far-from-edge alone", () => {
+    const out = snapToEdges({ x: 20, y: 20, w: 30, h: 30 });
+    expect(out.x).toBe(20);
+    expect(out.y).toBe(20);
+  });
+
+  it("respects custom threshold", () => {
+    expect(snapToEdges({ x: 8, y: 50, w: 30, h: 30 }, 5).x).toBe(8);
+    expect(snapToEdges({ x: 8, y: 50, w: 30, h: 30 }, 10).x).toBe(0);
   });
 });

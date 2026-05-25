@@ -17,9 +17,34 @@ from typing import Any
 import decky
 
 from deckpip.apps import add_custom_app, all_apps, remove_custom_app
+from deckpip.bookmarks import (
+    add_bookmark as _add_bookmark,
+)
+from deckpip.bookmarks import (
+    list_bookmarks as _list_bookmarks,
+)
+from deckpip.bookmarks import (
+    remove_bookmark as _remove_bookmark,
+)
+from deckpip.diagnostics import collect as _diagnostics_collect
 from deckpip.mirror import start_mirror_window
+from deckpip.profiles import (
+    get_profile as _get_profile,
+)
+from deckpip.profiles import (
+    list_profiles as _list_profiles,
+)
+from deckpip.profiles import (
+    remove_profile as _remove_profile,
+)
+from deckpip.profiles import (
+    set_profile as _set_profile,
+)
+from deckpip.ptt import send_key as _ptt_send_key
 from deckpip.session import PipSession, novnc_dir, terminate
 from deckpip.settings import SettingsStore
+from deckpip.updater import check_release as _check_release
+from deckpip.updater import run_setup as _run_setup
 
 
 class Plugin:
@@ -157,6 +182,49 @@ class Plugin:
             await terminate(self.session.mirror)
             self.session.mirror = None
             return {"ok": True}
+
+    # ----- per-game profiles -----------------------------------------------
+
+    async def list_profiles(self) -> dict:
+        return _list_profiles(self._get_settings())
+
+    async def get_profile(self, appid: str) -> dict | None:
+        return _get_profile(self._get_settings(), appid)
+
+    async def set_profile(self, appid: str, profile: dict) -> dict:
+        return _set_profile(self._get_settings(), appid, profile)
+
+    async def remove_profile(self, appid: str) -> dict:
+        return _remove_profile(self._get_settings(), appid)
+
+    # ----- bookmarks --------------------------------------------------------
+
+    async def list_bookmarks(self) -> list:
+        return _list_bookmarks(self._get_settings())
+
+    async def add_bookmark(self, bm_id: str, label: str, url: str) -> dict:
+        return _add_bookmark(self._get_settings(), bm_id, label, url)
+
+    async def remove_bookmark(self, bm_id: str) -> dict:
+        return _remove_bookmark(self._get_settings(), bm_id)
+
+    # ----- diagnostics ------------------------------------------------------
+
+    async def diagnostics(self) -> dict:
+        return await _diagnostics_collect(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+
+    # ----- push-to-talk -----------------------------------------------------
+
+    async def ptt(self, key_combo: str, action: str) -> dict:
+        return await _ptt_send_key(key_combo, action)
+
+    # ----- one-click update -------------------------------------------------
+
+    async def check_update(self) -> dict:
+        return await _check_release(self._get_settings())
+
+    async def run_update(self) -> dict:
+        return await _run_setup(Path(decky.DECKY_PLUGIN_DIR))
 
     # ----- lifecycle -------------------------------------------------------
 

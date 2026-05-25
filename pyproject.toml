@@ -10,6 +10,7 @@ ignore = [
     "ASYNC220", # we deliberately keep subprocess.Popen for long-lived processes we hand off
     "ASYNC221",
     "ASYNC222",
+    "ASYNC240", # cheap stat() calls on local paths, no trio/anyio runtime here
 ]
 
 [tool.pytest.ini_options]
