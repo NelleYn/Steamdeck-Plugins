@@ -15,7 +15,19 @@
 set -u
 set -o pipefail
 
-PACKAGES=(tigervnc python-websockify novnc xterm wmctrl)
+PACKAGES=(
+    # Core PiP runtime
+    tigervnc            # Xvnc, vncpasswd
+    python-websockify   # the websocket-to-VNC bridge
+    novnc               # static vnc.html + JS the iframe loads
+    xterm               # debug guest app
+
+    # Used by GameMirror + push-to-talk
+    wmctrl              # rename + fullscreen the mirror window
+    xdotool             # find the gst window by PID + inject PTT keys
+    gst-plugin-pipewire # provides the `pipewiresrc` GStreamer element
+    gst-plugins-good    # provides videoconvert + ximagesink
+)
 
 was_readonly=0
 restore_readonly() {
@@ -49,7 +61,7 @@ if [[ $rc -ne 0 ]]; then
 fi
 
 echo "[deckpip] verifying:"
-for bin in Xvnc vncpasswd websockify xterm wmctrl; do
+for bin in Xvnc vncpasswd websockify xterm wmctrl xdotool gst-launch-1.0 pw-cli; do
     if command -v "$bin" >/dev/null 2>&1; then
         echo "  ok  $bin -> $(command -v "$bin")"
     else

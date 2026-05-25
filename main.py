@@ -82,12 +82,17 @@ class Plugin:
 
     async def check_dependencies(self) -> dict:
         return {
+            # Core PiP
             "Xvnc": shutil.which("Xvnc") is not None,
             "vncpasswd": shutil.which("vncpasswd") is not None,
             "websockify": shutil.which("websockify") is not None,
             "novnc": novnc_dir() is not None,
             "xterm": shutil.which("xterm") is not None,
+            # GameMirror + PTT
             "wmctrl": shutil.which("wmctrl") is not None,
+            "xdotool": shutil.which("xdotool") is not None,
+            "gst-launch-1.0": shutil.which("gst-launch-1.0") is not None,
+            "pw-cli": shutil.which("pw-cli") is not None,
         }
 
     async def install_dependencies(self) -> dict:
