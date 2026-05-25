@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { FaTv } from "react-icons/fa";
 
+import { mouseButton, mouseMove } from "./api";
 import { clamp, snapToEdges } from "./presets";
 import { store, useStore } from "./store";
 
@@ -40,6 +41,52 @@ function MiniBadge() {
     >
       <FaTv />
     </button>
+  );
+}
+
+/** Transparent layer over the iframe that captures pointer events and
+ *  forwards them as xdotool calls to Xvnc :42. Throttles moves to ~30 fps. */
+function PointerCapture() {
+  const lastMove = useRef(0);
+  const sendMove = (e: React.PointerEvent) => {
+    const now = performance.now();
+    if (now - lastMove.current < 33) return;
+    lastMove.current = now;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    mouseMove(x, y).catch(() => {});
+  };
+  return (
+    <div
+      onPointerMove={sendMove}
+      onPointerDown={(e) => {
+        sendMove(e);
+        mouseButton(1, "press").catch(() => {});
+      }}
+      onPointerUp={() => {
+        mouseButton(1, "release").catch(() => {});
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        mouseButton(3, "click").catch(() => {});
+      }}
+      onWheel={(e) => {
+        e.preventDefault();
+        const ev = e as unknown as { deltaY: number };
+        mouseButton(ev.deltaY > 0 ? 5 : 4, "click").catch(() => {});
+      }}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 28,
+        bottom: 0,
+        cursor: "crosshair",
+        touchAction: "none",
+        pointerEvents: "auto",
+      }}
+    />
   );
 }
 
@@ -150,8 +197,14 @@ export function PipView() {
         src={s.url}
         sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"
         referrerPolicy="no-referrer"
-        style={{ flex: 1, border: "none", background: "#000" }}
+        style={{
+          flex: 1,
+          border: "none",
+          background: "#000",
+          pointerEvents: s.inputMode === "pointer" ? "none" : "auto",
+        }}
       />
+      {s.inputMode === "pointer" && <PointerCapture />}
       {!s.locked && (
         <div
           onPointerDown={onResizeDown}

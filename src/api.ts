@@ -61,6 +61,14 @@ export const stopNotificationMirror = callable<[], SimpleResult>("stop_notificat
 
 export type NotificationPayload = { app: string; summary: string; body: string };
 
+// Trackpad-as-mouse: forward pointer events from the overlay to Xvnc.
+export const mouseMove = callable<[x_pct: number, y_pct: number], SimpleResult>("mouse_move");
+export const mouseButton = callable<
+  [button: number, action: "press" | "release" | "click"],
+  SimpleResult
+>("mouse_button");
+export const mouseScroll = callable<[direction: "up" | "down"], SimpleResult>("mouse_scroll");
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

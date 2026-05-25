@@ -46,6 +46,15 @@ from deckpip.profiles import (
 from deckpip.ptt import send_key as _ptt_send_key
 from deckpip.session import PipSession, novnc_dir, terminate, websockify_argv
 from deckpip.settings import SettingsStore
+from deckpip.trackpad import (
+    mouse_button as _mouse_button,
+)
+from deckpip.trackpad import (
+    mouse_move as _mouse_move,
+)
+from deckpip.trackpad import (
+    mouse_scroll as _mouse_scroll,
+)
 from deckpip.updater import check_release as _check_release
 from deckpip.updater import run_setup as _run_setup
 from deckpip.vendoring import install_all as _vendor_install
@@ -131,6 +140,17 @@ class Plugin:
         await self._notif_mirror.stop()
         self._notif_mirror = None
         return {"ok": True}
+
+    # ----- pointer forwarding (trackpad-as-mouse in PiP) -------------------
+
+    async def mouse_move(self, x_pct: float, y_pct: float) -> dict:
+        return await _mouse_move(x_pct, y_pct)
+
+    async def mouse_button(self, button: int, action: str) -> dict:
+        return await _mouse_button(button, action)
+
+    async def mouse_scroll(self, direction: str) -> dict:
+        return await _mouse_scroll(direction)
 
     async def install_dependencies(self) -> dict:
         script = Path(decky.DECKY_PLUGIN_DIR) / "defaults" / "install.sh"

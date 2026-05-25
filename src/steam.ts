@@ -12,6 +12,14 @@ declare const window: Window & {
       RegisterForAppLifetimeNotifications?: (
         cb: (data: { unAppID: number; bRunning: boolean }) => void,
       ) => { unregister: () => void };
+      RegisterForScreenshotNotification?: (
+        cb: (data: {
+          unAppID: number;
+          hScreenshot?: number;
+          strOperation?: string;
+          details?: { strUrl?: string; strLocalFilename?: string };
+        }) => void,
+      ) => { unregister: () => void };
     };
     Apps?: {
       RegisterForGameActionStart?: (
@@ -25,6 +33,12 @@ declare const window: Window & {
 };
 
 export type GameLifetimeEvent = { appid: number; running: boolean };
+export type ScreenshotEvent = {
+  appid: number;
+  path?: string;
+  url?: string;
+  operation?: string;
+};
 
 export function getAppName(appid: number): string | null {
   try {
@@ -41,6 +55,29 @@ export function onAppLifecycle(
   try {
     const reg = window.SteamClient?.GameSessions?.RegisterForAppLifetimeNotifications?.((data) => {
       cb({ appid: data.unAppID, running: data.bRunning });
+    });
+    return () => {
+      try {
+        reg?.unregister?.();
+      } catch {
+        // ignore
+      }
+    };
+  } catch {
+    return () => {};
+  }
+}
+
+export function onScreenshot(cb: (event: ScreenshotEvent) => void): () => void {
+  try {
+    const reg = window.SteamClient?.GameSessions?.RegisterForScreenshotNotification?.((data) => {
+      if (data.strOperation && data.strOperation !== "written") return;
+      cb({
+        appid: data.unAppID,
+        path: data.details?.strLocalFilename,
+        url: data.details?.strUrl,
+        operation: data.strOperation,
+      });
     });
     return () => {
       try {

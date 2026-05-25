@@ -12,7 +12,7 @@ import {
   resumeSession,
 } from "./api";
 import { Content, ROUTE, startFromUi } from "./panel";
-import { onAppLifecycle } from "./steam";
+import { onAppLifecycle, onScreenshot } from "./steam";
 import { ensureHydrated, store } from "./store";
 
 // Decky's toaster is imported lazily so tests don't need to mock it.
@@ -194,12 +194,34 @@ function installNotificationListener(): () => void {
   };
 }
 
+/** When Steam captures a screenshot, offer to share it via the active
+ *  PiP guest (copy the path to clipboard so the user can paste it into
+ *  Discord/Telegram). No-op without an active session. */
+function installScreenshotHook(): () => void {
+  return onScreenshot(async ({ path }) => {
+    if (!store.get().url || !path) return;
+    try {
+      await navigator.clipboard?.writeText?.(path);
+      toaster.toast({
+        title: "DeckPiP",
+        body: "Screenshot path copied — paste into your PiP guest",
+      });
+    } catch {
+      toaster.toast({
+        title: "DeckPiP",
+        body: `Screenshot: ${path.slice(0, 120)}`,
+      });
+    }
+  });
+}
+
 export default definePlugin(() => {
   const removeHotkey = installHotkey();
   const removeAutoLaunch = installAutoLaunch();
   const removePauseScheduler = installPauseScheduler();
   const removeBatteryWatcher = installBatteryWatcher();
   const removeNotifListener = installNotificationListener();
+  const removeScreenshotHook = installScreenshotHook();
   ensureHydrated();
   return {
     name: "DeckPiP",
@@ -217,6 +239,7 @@ export default definePlugin(() => {
       removePauseScheduler();
       removeBatteryWatcher();
       removeNotifListener();
+      removeScreenshotHook();
     },
   };
 });

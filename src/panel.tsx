@@ -426,6 +426,14 @@ export function Content() {
               />
             </PanelSectionRow>
             <PanelSectionRow>
+              <ToggleField
+                label="Pointer mode (trackpad-as-mouse)"
+                description="Forward pointer events to the guest via xdotool. Enables clicking inside the PiP without a BT mouse."
+                checked={s.inputMode === "pointer"}
+                onChange={(v) => store.set({ inputMode: v ? "pointer" : "drag" })}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
               <SliderField
                 label="Guest volume"
                 description="Independent of system volume; via pactl on the guest's sink"

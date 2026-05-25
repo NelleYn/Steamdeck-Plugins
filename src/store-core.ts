@@ -9,6 +9,7 @@ export type Persisted = {
   hotkeyToggle: string;
   hotkeyPtt: string;
   lowBattery: boolean;
+  inputMode: "drag" | "pointer";
 };
 
 export type State = Persisted & {
@@ -29,6 +30,7 @@ export const DEFAULT_STATE: State = {
   hotkeyToggle: "F10",
   hotkeyPtt: "F12",
   lowBattery: false,
+  inputMode: "drag",
   visible: true,
   mirrorOn: false,
 };
@@ -70,6 +72,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
         hotkeyToggle: state.hotkeyToggle,
         hotkeyPtt: state.hotkeyPtt,
         lowBattery: state.lowBattery,
+        inputMode: state.inputMode,
       });
     }
   };
@@ -86,6 +89,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
         typeof p.hotkeyToggle === "string" && p.hotkeyToggle ? p.hotkeyToggle : state.hotkeyToggle,
       hotkeyPtt: typeof p.hotkeyPtt === "string" && p.hotkeyPtt ? p.hotkeyPtt : state.hotkeyPtt,
       lowBattery: typeof p.lowBattery === "boolean" ? p.lowBattery : state.lowBattery,
+      inputMode: p.inputMode === "pointer" ? "pointer" : state.inputMode,
     };
     listeners.forEach((l) => l());
   };
