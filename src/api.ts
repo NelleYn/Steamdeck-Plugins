@@ -50,6 +50,12 @@ export const importSettings = callable<
   SimpleResult
 >("import_settings");
 
+export type VendorStatus = { novnc: string; websockify: string; root: string };
+export const vendorStatus = callable<[], VendorStatus>("vendor_status");
+export const installVendored = callable<[force: boolean], Record<string, unknown>>(
+  "install_vendored",
+);
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

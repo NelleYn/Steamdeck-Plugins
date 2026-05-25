@@ -56,6 +56,10 @@ def test_plugin_class_has_required_methods() -> None:
         "list_bookmarks", "add_bookmark", "remove_bookmark",
         "diagnostics", "ptt",
         "check_update", "run_update",
+        "pause_session", "resume_session",
+        "set_guest_volume", "battery_state",
+        "export_settings", "import_settings",
+        "vendor_status", "install_vendored",
         "_main", "_unload", "_uninstall",
     ]:
         assert callable(getattr(plugin, name)), f"missing: {name}"

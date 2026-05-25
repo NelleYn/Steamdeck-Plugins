@@ -25,6 +25,7 @@ import {
   getProfile,
   importSettings,
   installDeps,
+  installVendored,
   listApps,
   listBookmarks,
   removeBookmark,
@@ -109,6 +110,7 @@ export function Content() {
   );
   const [deps, setDeps] = useState<DepStatus | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [installingVendored, setInstallingVendored] = useState(false);
   const [busy, setBusy] = useState(false);
   const [audioOnlyOnStart, setAudioOnlyOnStart] = useState(false);
   const [webUrl, setWebUrl] = useState("");
@@ -155,6 +157,20 @@ export function Content() {
     toaster.toast({
       title: "DeckPiP",
       body: res.ok ? "Dependencies installed" : `Install failed (rc=${res.rc ?? "?"})`,
+    });
+  };
+
+  const onInstallVendored = async () => {
+    setInstallingVendored(true);
+    const res = await installVendored(false);
+    setInstallingVendored(false);
+    setDeps(await checkDeps());
+    const ok = (res as { ok?: boolean }).ok;
+    toaster.toast({
+      title: "DeckPiP",
+      body: ok
+        ? "noVNC + websockify vendored"
+        : `Vendor install failed: ${JSON.stringify(res).slice(0, 160)}`,
     });
   };
 
@@ -598,6 +614,17 @@ export function Content() {
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={installing} onClick={onInstallDeps}>
             {installing ? "Installing…" : "Install dependencies (pacman)"}
+          </ButtonItem>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={installingVendored}
+            onClick={onInstallVendored}
+          >
+            {installingVendored
+              ? "Vendoring noVNC + websockify…"
+              : "Install vendored runtime"}
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>

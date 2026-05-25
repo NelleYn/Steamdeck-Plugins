@@ -43,10 +43,12 @@ from deckpip.profiles import (
     set_profile as _set_profile,
 )
 from deckpip.ptt import send_key as _ptt_send_key
-from deckpip.session import PipSession, novnc_dir, terminate
+from deckpip.session import PipSession, novnc_dir, terminate, websockify_argv
 from deckpip.settings import SettingsStore
 from deckpip.updater import check_release as _check_release
 from deckpip.updater import run_setup as _run_setup
+from deckpip.vendoring import install_all as _vendor_install
+from deckpip.vendoring import status as _vendor_status
 
 
 class Plugin:
@@ -83,12 +85,13 @@ class Plugin:
         return {"ok": True}
 
     async def check_dependencies(self) -> dict:
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
         return {
             # Required for any PiP session
             "Xvnc": shutil.which("Xvnc") is not None,
             "vncpasswd": shutil.which("vncpasswd") is not None,
-            "websockify": shutil.which("websockify") is not None,
-            "novnc": novnc_dir() is not None,
+            "websockify": websockify_argv(rt) is not None,
+            "novnc": novnc_dir(rt) is not None,
             "pactl": shutil.which("pactl") is not None,
             # Optional, for GameMirror only — surface separately so the panel
             # doesn't scream "missing" for a feature the user may not need.
@@ -96,6 +99,14 @@ class Plugin:
             "_optional_gst": shutil.which("gst-launch-1.0") is not None,
             "_optional_pw-cli": shutil.which("pw-cli") is not None,
         }
+
+    async def vendor_status(self) -> dict:
+        return _vendor_status(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+
+    async def install_vendored(self, force: bool = False) -> dict:
+        return await _vendor_install(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+        )
 
     async def install_dependencies(self) -> dict:
         script = Path(decky.DECKY_PLUGIN_DIR) / "defaults" / "install.sh"

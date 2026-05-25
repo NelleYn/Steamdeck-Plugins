@@ -43,10 +43,31 @@ NOVNC_CANDIDATES = [
 ]
 
 
-def novnc_dir() -> str | None:
+def novnc_dir(runtime_dir: Path | None = None) -> str | None:
+    """Prefer the vendored copy under runtime_dir/vendored if present,
+    otherwise fall back to the system-wide install paths."""
+    if runtime_dir is not None:
+        from deckpip.vendoring import vendored_novnc
+        vendored = vendored_novnc(runtime_dir)
+        if vendored is not None:
+            return str(vendored)
     for path in NOVNC_CANDIDATES:
         if Path(path, "vnc.html").exists():
             return path
+    return None
+
+
+def websockify_argv(runtime_dir: Path | None = None) -> list[str] | None:
+    """Build the leading argv for websockify, preferring the vendored
+    binary if present. Returns None if no copy is available."""
+    if runtime_dir is not None:
+        from deckpip.vendoring import vendored_websockify
+        vw = vendored_websockify(runtime_dir)
+        if vw is not None:
+            return [str(vw)]
+    system = shutil.which("websockify")
+    if system is not None:
+        return [system]
     return None
 
 
@@ -139,13 +160,16 @@ class PipSession:
         if self.audio_only:
             return
 
-        novnc = novnc_dir()
+        novnc = novnc_dir(self.runtime_dir)
         if novnc is None:
             raise FileNotFoundError("novnc")
+        ws_head = websockify_argv(self.runtime_dir)
+        if ws_head is None:
+            raise FileNotFoundError("websockify")
 
         self.websockify = subprocess.Popen(
             _as_user_argv([
-                "websockify",
+                *ws_head,
                 "--web", novnc,
                 f"{VNC_BIND}:{VNC_WEB_PORT}",
                 f"127.0.0.1:{VNC_RFB_PORT}",

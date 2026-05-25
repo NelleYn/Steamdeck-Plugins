@@ -13,10 +13,12 @@ set -u
 set -o pipefail
 
 REQUIRED=(
-    tigervnc           # Xvnc, vncpasswd
-    python-websockify  # the websocket-to-VNC bridge
-    novnc              # static vnc.html + JS the iframe loads
+    tigervnc           # Xvnc, vncpasswd — only true required pacman dep
 )
+# Notes on what we DON'T pacman-install any more:
+#  - python-websockify  vendored via pip into DECKY_PLUGIN_RUNTIME_DIR
+#  - novnc              vendored via tarball download from GitHub
+# Use the panel's "Install vendored runtime" button after pacman is done.
 
 OPTIONAL=(
     wmctrl              # GameMirror: rename + fullscreen the mirror window
