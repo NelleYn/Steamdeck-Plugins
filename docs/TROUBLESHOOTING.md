@@ -102,16 +102,76 @@ copies frames through CPU. Future work: switch to
 For now: lower the in-game framerate, or use audio-only mode for
 Discord (no video iframe = no compositor cost on top of the game).
 
-## "F10 doesn't toggle visibility"
+## "F10 / F12 PTT don't work during gameplay"
 
-The hotkey is a DOM `keydown` listener — it only fires if a keyboard
-is attached and Steam UI has focus. Touch / controller don't trigger
-it. On the Deck specifically:
+Both hotkeys are DOM `keydown` listeners and **only fire when Steam UI
+has keyboard focus**. When the game is in the foreground, Gamescope
+routes input straight to it, bypassing Steam UI's CEF. So:
 
-- Connect a Bluetooth keyboard for testing.
-- Or open Quick Access and use the **Visible** toggle in the panel.
+- F10 / F12 work while Quick Access is open ✅
+- They don't work while you're actively playing ❌
+- Touch / controller never trigger them (no DOM keydown)
 
-A proper gamescope-level hotkey is on the roadmap.
+Workarounds today:
+- Bluetooth keyboard + open Quick Access first.
+- For PTT: configure Discord to use a different key combo and use the
+  controller-side keybinding tool of your choice to map a button to
+  that combo at the OS level.
+
+Roadmap: hook into `gamescope_action_binding` so we can register a
+real system-level hotkey usable during gameplay.
+
+## "F12 PTT does nothing"
+
+The DeckPiP PTT sends `ctrl+shift+m` via `xdotool keydown` to
+`DISPLAY=:42`. That key combo is **not Discord's default** — Discord
+default PTT is unbound. You need to:
+
+1. Open Discord (through DeckPiP, so it's on `:42`).
+2. User Settings → Voice & Video → Input Mode → **Push to Talk**.
+3. Click **Edit Keybind** and press Ctrl+Shift+M.
+
+Then F12-hold in DeckPiP will activate the mic.
+
+## "no element pipewiresrc" or "no property target-object"
+
+Old PipeWire installs (pre-1.0) used `path=N` instead of
+`target-object=N` for the `pipewiresrc` element. DeckPiP auto-falls
+back: it spawns the pipeline with `target-object=…` first, and if the
+process exits within 0.5 s, it retries with `path=…`. If both fail,
+you'll see `pipewiresrc_failed` in the toast.
+
+Fix:
+
+```sh
+sudo steamos-readonly disable
+sudo pacman -S gst-plugin-pipewire gst-plugins-good
+sudo steamos-readonly enable
+```
+
+Then verify:
+
+```sh
+gst-inspect-1.0 pipewiresrc
+```
+
+If that prints "No such element or plugin 'pipewiresrc'" — the
+package isn't installed.
+
+## "Xvnc launches but Discord (Flatpak) crashes immediately"
+
+This is the canonical "Flatpak refuses to run as root" failure.
+DeckPiP runs as root because of the Decky `_root` flag, but it now
+wraps Xvnc and guest commands with `runuser -u deck --` so they run
+as the desktop user. Verify:
+
+```sh
+ps -ef | grep -E "Xvnc|Discord" | grep -v grep
+```
+
+The UID column should say `deck`, not `root`. If it says `root`,
+`runuser` may be missing or the dropping logic didn't activate
+(check `journalctl -u plugin_loader -e` for the actual argv).
 
 ## Plugin won't uninstall cleanly
 

@@ -36,6 +36,8 @@ See:
   checklist that gates implementation.
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — common
   install/runtime issues and how to debug them.
+- [`docs/DECKY_STORE.md`](docs/DECKY_STORE.md) — submission status
+  to the official Decky Plugin Store and what blocks it today.
 
 ## Layout
 
@@ -121,23 +123,46 @@ bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 
 ## Features
 
-- Quick Access panel with a list of preset apps
-  (Discord/Telegram/xterm) and one-tap launch.
-- Drag the PiP overlay by its title bar; **opacity slider** (20–100 %);
-  **click-through** toggle so input goes to the game; presets:
-  *small bottom-right*, *medium left*, *fullscreen*.
-- **Audio-only mode** for each app — runs guest in Xvnc with audio,
-  doesn't open the iframe, saves a chunk of CPU.
-- **Dependency self-check / installer** built into the panel.
+- **Apps panel** in Quick Access — built-in entries for Discord
+  (Flatpak), Telegram (Flatpak), xterm; one-tap launch.
+- **Custom apps** — register your own command from the panel
+  (shlex-parsed argv, persisted server-side).
+- **Web-PiP mode** — load an arbitrary `http(s)://` URL in the PiP
+  iframe without spawning Xvnc; bookmark frequently used URLs.
+- **Audio-only mode** — runs the guest in Xvnc with audio, skips the
+  iframe, saves a chunk of CPU when you only need voice chat.
+- **Overlay controls** — drag-bar header, resize handle, **opacity**
+  slider (20–100 %), **click-through** toggle so input goes to the
+  game, **snap-to-edges** at drop, three position presets, **touch
+  mode** that doubles drag/resize hit areas.
+- **Per-game profile** — save current overlay (app, geom, opacity)
+  for the foreground Steam app; toggle **auto-launch on this game**
+  to start DeckPiP automatically when that game launches.
+- **Hotkeys** — **F10** toggles visibility, **F12 hold** sends
+  `ctrl+shift+m` to the guest (Discord PTT). Both work only when
+  Steam UI has keyboard focus; see TROUBLESHOOTING.
+- **GameMirror** — when Discord is the active PiP, optional toggle
+  spawns a gstreamer pipeline that mirrors the real gamescope output
+  into Xvnc as a window named `GameMirror`, so Discord's Go Live can
+  share the game (works around the Gaming Mode portal bug).
+- **Dependency self-check / installer** — System panel surfaces
+  missing binaries and runs the bundled `defaults/install.sh`.
+- **Diagnostics** — one-tap JSON snapshot of binaries, versions,
+  paths; useful for bug reports.
+- **One-click self-update** — polls a GitHub release (private repo
+  supported via PAT entered in the System panel) and re-runs
+  `setup.sh` in place.
 
 ## Known gaps (intentional for the PoC)
 
 - No controller-as-mouse inside the PiP — use the trackpad.
 - No HDR passthrough.
 - One PiP session at a time.
-- Guest audio shares the game's PulseAudio sink.
-- Process cleanup is SIGTERM-only; no escalation to SIGKILL on hang.
-- Hotkey toggle for show/hide is not wired up yet — use the panel.
+- Guest audio shares the game's PulseAudio sink (no per-app loopback
+  / audio ducking yet).
+- DOM-based hotkeys don't fire while the game has input focus.
+- Repository is private — Decky's "Install from URL" doesn't work
+  anonymously; see [Install](#install-on-a-steam-deck) for paths.
 
 ## Next steps
 

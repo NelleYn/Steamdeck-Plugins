@@ -30,6 +30,8 @@ import {
   removeProfile,
   runUpdate,
   setProfile,
+  settingsGet,
+  settingsSet,
   startMirror,
   startPip,
   stopMirror,
@@ -111,12 +113,14 @@ export function Content() {
   const [profile, setLocalProfile] = useState<GameProfile | null>(null);
   const [diag, setDiag] = useState<unknown | null>(null);
   const [updateInfo, setUpdateInfo] = useState<unknown | null>(null);
+  const [githubToken, setGithubToken] = useState("");
 
   useEffect(() => {
     ensureHydrated();
     listApps().then(setApps);
     checkDeps().then(setDeps);
     listBookmarks().then(setBookmarks);
+    settingsGet("github_token", "").then((v) => setGithubToken(typeof v === "string" ? v : ""));
     // Read current foreground appid out of the store; this is best-effort.
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
     const aid = w.__DECKPIP_CURRENT_APPID__ ?? null;
@@ -265,6 +269,11 @@ export function Content() {
   const onRunUpdate = async () => {
     const res = await runUpdate();
     toaster.toast({ title: "DeckPiP", body: JSON.stringify(res).slice(0, 200) });
+  };
+
+  const onSaveToken = async () => {
+    await settingsSet("github_token", githubToken.trim());
+    toaster.toast({ title: "DeckPiP", body: "GitHub token saved" });
   };
 
   if (running) {
@@ -514,6 +523,18 @@ export function Content() {
             </ButtonItem>
           </PanelSectionRow>
         )}
+        <PanelSectionRow>
+          <TextField
+            label="GitHub PAT (for private repo updates)"
+            value={githubToken}
+            onChange={(e) => setGithubToken((e.target as HTMLInputElement).value)}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={onSaveToken}>
+            Save token
+          </ButtonItem>
+        </PanelSectionRow>
       </PanelSection>
     </>
   );

@@ -33,6 +33,7 @@ def _install_decky_stub() -> None:
 def test_main_module_imports_cleanly() -> None:
     _install_decky_stub()
     import importlib
+
     import main as decky_main
 
     importlib.reload(decky_main)

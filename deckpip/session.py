@@ -18,6 +18,24 @@ VNC_BIND = "127.0.0.1"
 VNC_RFB_PORT = 5942
 VNC_WEB_PORT = 6901
 
+# Decky plugins with _root flag run main.py as root, but Xvnc / guest apps
+# need to run as the desktop user so they can talk to PulseAudio, read
+# ~/.config and ~/.var (Flatpak), and own /tmp/.X42-lock. We drop privileges
+# via `runuser -u <user> --` if we're actually root.
+DECK_USER = "deck"
+
+
+def _as_user_argv(argv: list[str]) -> list[str]:
+    """Wrap argv with runuser so it runs as DECK_USER, if we are root and
+    runuser is available. No-op otherwise."""
+    if os.geteuid() != 0:
+        return argv
+    runuser = shutil.which("runuser")
+    if runuser is None:
+        return argv
+    return [runuser, "-u", DECK_USER, "--", *argv]
+
+
 NOVNC_CANDIDATES = [
     "/usr/share/novnc",
     "/usr/share/webapps/novnc",
@@ -97,7 +115,7 @@ class PipSession:
         passwd_path = await self._write_vnc_passwd()
 
         self.xvnc = subprocess.Popen(
-            [
+            _as_user_argv([
                 "Xvnc", DISPLAY,
                 "-geometry", GEOMETRY,
                 "-depth", DEPTH,
@@ -106,7 +124,7 @@ class PipSession:
                 "-localhost", "yes",
                 "-rfbport", str(VNC_RFB_PORT),
                 "-AlwaysShared",
-            ],
+            ]),
             preexec_fn=os.setsid,
         )
         if not await wait_port("127.0.0.1", VNC_RFB_PORT, timeout=5.0):
@@ -114,7 +132,7 @@ class PipSession:
 
         env = {**os.environ, "DISPLAY": DISPLAY}
         self.guest = subprocess.Popen(
-            self.app["command"], env=env, preexec_fn=os.setsid
+            _as_user_argv(self.app["command"]), env=env, preexec_fn=os.setsid
         )
 
         if self.audio_only:
@@ -125,12 +143,12 @@ class PipSession:
             raise FileNotFoundError("novnc")
 
         self.websockify = subprocess.Popen(
-            [
+            _as_user_argv([
                 "websockify",
                 "--web", novnc,
                 f"{VNC_BIND}:{VNC_WEB_PORT}",
                 f"127.0.0.1:{VNC_RFB_PORT}",
-            ],
+            ]),
             preexec_fn=os.setsid,
         )
         if not await wait_port(VNC_BIND, VNC_WEB_PORT, timeout=5.0):

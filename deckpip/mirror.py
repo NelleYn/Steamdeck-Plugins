@@ -14,7 +14,7 @@ import os
 import shutil
 import subprocess
 
-from deckpip.session import DISPLAY
+from deckpip.session import DISPLAY, _as_user_argv
 
 log = logging.getLogger(__name__)
 
@@ -61,11 +61,36 @@ def parse_gamescope_node(pw_output: str) -> str | None:
     return name_only_candidate
 
 
+def gst_argv(node_id: str, prop: str = "target-object") -> list[str]:
+    """Build the gst-launch-1.0 command line. PipeWire 1.0+ pipewiresrc uses
+    ``target-object``; older versions use ``path``. We default to the new
+    one and let the caller retry with the older one on failure."""
+    return [
+        "gst-launch-1.0", "-q",
+        "pipewiresrc", f"{prop}={node_id}",
+        "!", "videoconvert",
+        "!", "ximagesink", "sync=false",
+    ]
+
+
+async def _spawn_pipeline(argv: list[str], env: dict) -> subprocess.Popen | None:
+    """Spawn gst-launch and bail if it dies within 0.5 s (signals
+    that pipewiresrc rejected its property)."""
+    proc = subprocess.Popen(
+        _as_user_argv(argv), env=env, preexec_fn=os.setsid,
+    )
+    await asyncio.sleep(0.5)
+    if proc.poll() is not None:
+        return None
+    return proc
+
+
 async def start_mirror_window() -> subprocess.Popen:
     """Spawn the gst pipeline mirroring gamescope into Xvnc :42.
 
     Returns the gstreamer Popen handle. Raises FileNotFoundError if
-    gstreamer is missing, RuntimeError if no gamescope node was found.
+    gstreamer is missing, RuntimeError if no gamescope node was found
+    or if pipewiresrc rejects both ``target-object`` and ``path``.
     """
     if shutil.which("gst-launch-1.0") is None:
         raise FileNotFoundError("gstreamer")
@@ -73,16 +98,14 @@ async def start_mirror_window() -> subprocess.Popen:
     if node_id is None:
         raise RuntimeError("no_gamescope_pw_node")
     env = {**os.environ, "DISPLAY": DISPLAY}
-    proc = subprocess.Popen(
-        [
-            "gst-launch-1.0", "-q",
-            "pipewiresrc", f"target-object={node_id}",
-            "!", "videoconvert",
-            "!", "ximagesink", "sync=false",
-        ],
-        env=env,
-        preexec_fn=os.setsid,
-    )
+
+    proc = await _spawn_pipeline(gst_argv(node_id, "target-object"), env)
+    if proc is None:
+        log.warning("pipewiresrc target-object failed, retrying with path=")
+        proc = await _spawn_pipeline(gst_argv(node_id, "path"), env)
+    if proc is None:
+        raise RuntimeError("pipewiresrc_failed")
+
     await _rename_and_fullscreen(proc.pid, env)
     return proc
 
