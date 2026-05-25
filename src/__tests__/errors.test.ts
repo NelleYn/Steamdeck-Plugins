@@ -20,7 +20,14 @@ describe("friendlyError", () => {
     expect(friendlyError("missing_dependency:vncpasswd")).toMatch(/TigerVNC/);
     expect(friendlyError("missing_dependency:novnc")).toMatch(/noVNC/);
     expect(friendlyError("missing_dependency:websockify")).toMatch(/websockify/);
-    expect(friendlyError("missing_dependency:gstreamer")).toMatch(/gstreamer missing/);
+    expect(friendlyError("missing_dependency:pactl")).toMatch(/PTT/);
+    expect(friendlyError("missing_dependency:gstreamer")).toMatch(/GameMirror/);
+  });
+
+  it("formats pactl PTT failures", () => {
+    expect(friendlyError("pactl_rc:1:Connection refused")).toBe(
+      "PTT failed: 1:Connection refused",
+    );
   });
 
   it("falls back to dep name for unknown missing dependency", () => {

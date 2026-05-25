@@ -10,6 +10,13 @@ def test_default_apps_only(tmp_path: Path) -> None:
     assert [a["id"] for a in apps] == [a["id"] for a in DEFAULT_APPS]
 
 
+def test_default_apps_are_minimal_and_known(tmp_path: Path) -> None:
+    """xterm got removed from defaults to drop the xterm pacman dep;
+    only the two real social-app launchers should remain."""
+    ids = {a["id"] for a in DEFAULT_APPS}
+    assert ids == {"discord_flatpak", "telegram_flatpak"}
+
+
 def test_add_custom_appends(tmp_path: Path) -> None:
     store = SettingsStore(tmp_path)
     res = add_custom_app(store, "x1", "Hello", "echo hi")

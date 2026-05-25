@@ -13,9 +13,13 @@ export function friendlyError(err: string | undefined): string {
       return "TigerVNC missing — tap Install dependencies";
     if (dep === "novnc") return "noVNC missing — tap Install dependencies";
     if (dep === "websockify") return "websockify missing — tap Install dependencies";
+    if (dep === "pactl") return "pactl missing — PTT unavailable (should ship with PulseAudio)";
     if (dep === "gstreamer")
-      return "gstreamer missing — sudo pacman -S gst-plugins-good gst-plugin-pipewire";
+      return "gstreamer missing — install optional deps for GameMirror";
     return `Missing: ${dep}`;
+  }
+  if (err.startsWith("pactl_rc:")) {
+    return `PTT failed: ${err.slice("pactl_rc:".length)}`;
   }
   if (err.startsWith("parse_error:")) {
     return `Could not parse command: ${err.slice("parse_error:".length)}`;

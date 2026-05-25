@@ -30,18 +30,31 @@ Decky's preferred shape for a plugin's runtime is **self-contained**:
 either pure Python on the backend, or **statically linked binaries
 shipped inside the plugin directory**. The store explicitly
 discourages plugins that ask the user to run `pacman -S …` to install
-system packages, because it breaks SteamOS's immutable-root model and
-survives badly across OS updates.
+system packages.
 
-DeckPiP today depends on `tigervnc`, `python-websockify`, `novnc`,
-`xterm`, `wmctrl`, `xdotool`, `gst-plugin-pipewire` and
-`gst-plugins-good`, all installed via `defaults/install.sh`. To pass
-store review, every one of those would need to be bundled as a
-portable binary tarball under `DECKY_PLUGIN_RUNTIME_DIR`. That's a
-realistic engineering effort (the
-[`tigervnc-static`](https://github.com/TigerVNC/tigervnc) project
-already produces standalone builds, and noVNC is a static folder of
-HTML/JS), but it has not been done.
+DeckPiP's required runtime is down to **three pacman packages** —
+`tigervnc`, `python-websockify`, `novnc` — plus three **optional**
+packages for the GameMirror feature only. Other prior dependencies
+were either dropped or replaced:
+
+- `xterm` removed from defaults (was a debug-only entry).
+- `xdotool` removed entirely; PTT now uses `pactl set-source-mute`
+  (libpulse ships with SteamOS, no install needed).
+
+To fully pass store review, the remaining three required packages
+would need to be vendored as a portable bundle under
+`DECKY_PLUGIN_RUNTIME_DIR`:
+
+- **noVNC** is plain HTML+JS, ~5 MB — trivial to vendor.
+- **websockify** is pure Python, can be `pip install --target=…`
+  during install or shipped as a vendored copy.
+- **TigerVNC's Xvnc** is the only C binary; a static build exists
+  (the [tigervnc-static](https://github.com/TigerVNC/tigervnc)
+  project produces one) but bundling per-arch tarballs is the
+  non-trivial part.
+
+Done in this order, the install pipeline can stop touching pacman
+entirely.
 
 ## Soft requirements we already meet
 

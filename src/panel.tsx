@@ -47,10 +47,16 @@ export const ROUTE = "/deckpip/view";
 
 function depsLabel(deps: DepStatus | null): string {
   if (!deps) return "Check dependencies";
-  const missing = Object.entries(deps)
+  // Required keys have no leading underscore; optional keys start with `_optional_`.
+  const required = Object.entries(deps).filter(([k]) => !k.startsWith("_optional_"));
+  const optional = Object.entries(deps).filter(([k]) => k.startsWith("_optional_"));
+  const missingReq = required.filter(([, ok]) => !ok).map(([k]) => k);
+  const missingOpt = optional
     .filter(([, ok]) => !ok)
-    .map(([k]) => k);
-  return missing.length === 0 ? "Dependencies OK" : `Missing: ${missing.join(", ")}`;
+    .map(([k]) => k.replace(/^_optional_/, ""));
+  if (missingReq.length > 0) return `Missing required: ${missingReq.join(", ")}`;
+  if (missingOpt.length > 0) return `OK (GameMirror needs: ${missingOpt.join(", ")})`;
+  return "Dependencies OK";
 }
 
 export function openRoute(url: string) {

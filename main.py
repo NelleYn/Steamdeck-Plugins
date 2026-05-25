@@ -82,17 +82,17 @@ class Plugin:
 
     async def check_dependencies(self) -> dict:
         return {
-            # Core PiP
+            # Required for any PiP session
             "Xvnc": shutil.which("Xvnc") is not None,
             "vncpasswd": shutil.which("vncpasswd") is not None,
             "websockify": shutil.which("websockify") is not None,
             "novnc": novnc_dir() is not None,
-            "xterm": shutil.which("xterm") is not None,
-            # GameMirror + PTT
-            "wmctrl": shutil.which("wmctrl") is not None,
-            "xdotool": shutil.which("xdotool") is not None,
-            "gst-launch-1.0": shutil.which("gst-launch-1.0") is not None,
-            "pw-cli": shutil.which("pw-cli") is not None,
+            "pactl": shutil.which("pactl") is not None,
+            # Optional, for GameMirror only — surface separately so the panel
+            # doesn't scream "missing" for a feature the user may not need.
+            "_optional_wmctrl": shutil.which("wmctrl") is not None,
+            "_optional_gst": shutil.which("gst-launch-1.0") is not None,
+            "_optional_pw-cli": shutil.which("pw-cli") is not None,
         }
 
     async def install_dependencies(self) -> dict:
@@ -220,8 +220,10 @@ class Plugin:
 
     # ----- push-to-talk -----------------------------------------------------
 
-    async def ptt(self, key_combo: str, action: str) -> dict:
-        return await _ptt_send_key(key_combo, action)
+    async def ptt(self, _key_combo: str, action: str) -> dict:
+        """PTT is now PulseAudio mute/unmute; key_combo arg kept for API
+        compatibility with older frontends."""
+        return await _ptt_send_key(_key_combo, action)
 
     # ----- one-click update -------------------------------------------------
 

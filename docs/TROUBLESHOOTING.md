@@ -123,15 +123,24 @@ real system-level hotkey usable during gameplay.
 
 ## "F12 PTT does nothing"
 
-The DeckPiP PTT sends `ctrl+shift+m` via `xdotool keydown` to
-`DISPLAY=:42`. That key combo is **not Discord's default** — Discord
-default PTT is unbound. You need to:
+DeckPiP's PTT is OS-level: holding F12 calls `pactl set-source-mute
+@DEFAULT_SOURCE@ false` (unmute mic), releasing F12 calls the same
+with `true` (mute). It works regardless of which voice client is
+running, as long as that client is reading from the default
+PulseAudio/PipeWire source.
 
-1. Open Discord (through DeckPiP, so it's on `:42`).
-2. User Settings → Voice & Video → Input Mode → **Push to Talk**.
-3. Click **Edit Keybind** and press Ctrl+Shift+M.
+Things to check if F12 does nothing:
 
-Then F12-hold in DeckPiP will activate the mic.
+1. Steam UI must have keyboard focus — same caveat as F10.
+2. `pactl` must be installed: `command -v pactl`. Should be present
+   on every SteamOS by default (ships with libpulse). If missing,
+   `sudo pacman -S libpulse`.
+3. Your voice client must use the default source. In Discord:
+   User Settings → Voice & Video → Input Device = "Default".
+4. Diagnostic: from a SSH session, run
+   `pactl get-source-mute @DEFAULT_SOURCE@` while holding F12 — it
+   should print "Mute: no". If it doesn't change, the keydown isn't
+   reaching the plugin.
 
 ## "no element pipewiresrc" or "no property target-object"
 

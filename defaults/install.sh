@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
 # DeckPiP runtime-dependency installer.
 #
-# Invoked by the plugin backend (Plugin.install_dependencies) running as root.
-# Also runnable by hand in Desktop Mode for users who prefer the manual path.
+# Invoked by the plugin backend (Plugin.install_dependencies) running as
+# root. Also runnable by hand in Desktop Mode for users who prefer the
+# manual path.
 #
-# Steps:
-#   1. Disable steamos-readonly (no-op if already writable)
-#   2. Initialize pacman keyring (idempotent)
-#   3. Install: tigervnc, python-websockify, novnc, xterm, wmctrl
-#   4. Re-enable steamos-readonly
-#
-# Re-enables read-only even on failure via trap.
+# Strategy: keep the required set as small as possible. Optional packages
+# unlock extra features (GameMirror) but the base PiP flow works without
+# them.
 
 set -u
 set -o pipefail
 
-PACKAGES=(
-    # Core PiP runtime
-    tigervnc            # Xvnc, vncpasswd
-    python-websockify   # the websocket-to-VNC bridge
-    novnc               # static vnc.html + JS the iframe loads
-    xterm               # debug guest app
-
-    # Used by GameMirror + push-to-talk
-    wmctrl              # rename + fullscreen the mirror window
-    xdotool             # find the gst window by PID + inject PTT keys
-    gst-plugin-pipewire # provides the `pipewiresrc` GStreamer element
-    gst-plugins-good    # provides videoconvert + ximagesink
+REQUIRED=(
+    tigervnc           # Xvnc, vncpasswd
+    python-websockify  # the websocket-to-VNC bridge
+    novnc              # static vnc.html + JS the iframe loads
 )
+
+OPTIONAL=(
+    wmctrl              # GameMirror: rename + fullscreen the mirror window
+    gst-plugin-pipewire # GameMirror: the `pipewiresrc` GStreamer element
+    gst-plugins-good    # GameMirror: videoconvert + ximagesink
+)
+# Notes on things NOT installed here:
+#  - pactl       ships with libpulse, already in the SteamOS base image
+#  - xterm       removed; add as a Custom App from the panel if you want it
+#  - xdotool     removed; PTT now uses pactl, GameMirror works without it
+#  - flatpak     base image; only needed if you launch flatpak'd guests
+
+PACKAGES=("${REQUIRED[@]}" "${OPTIONAL[@]}")
 
 was_readonly=0
 restore_readonly() {
@@ -51,21 +53,34 @@ if [[ ! -d /etc/pacman.d/gnupg ]] || [[ -z "$(ls -A /etc/pacman.d/gnupg 2>/dev/n
     pacman-key --populate archlinux holo 2>/dev/null || pacman-key --populate
 fi
 
-echo "[deckpip] installing: ${PACKAGES[*]}"
-pacman -Sy --needed --noconfirm "${PACKAGES[@]}"
+echo "[deckpip] installing required: ${REQUIRED[*]}"
+pacman -Sy --needed --noconfirm "${REQUIRED[@]}"
 rc=$?
 
 if [[ $rc -ne 0 ]]; then
-    echo "[deckpip] pacman exited with rc=$rc" >&2
+    echo "[deckpip] required-package install failed (rc=$rc)" >&2
     exit $rc
 fi
 
-echo "[deckpip] verifying:"
-for bin in Xvnc vncpasswd websockify xterm wmctrl xdotool gst-launch-1.0 pw-cli; do
+echo "[deckpip] installing optional: ${OPTIONAL[*]} (failures non-fatal)"
+pacman -S --needed --noconfirm "${OPTIONAL[@]}" || \
+    echo "[deckpip] some optional packages did not install; GameMirror may be unavailable"
+
+echo "[deckpip] verifying required:"
+for bin in Xvnc vncpasswd websockify pactl; do
     if command -v "$bin" >/dev/null 2>&1; then
         echo "  ok  $bin -> $(command -v "$bin")"
     else
         echo "  MISSING $bin" >&2
+    fi
+done
+
+echo "[deckpip] verifying optional:"
+for bin in wmctrl gst-launch-1.0 pw-cli; do
+    if command -v "$bin" >/dev/null 2>&1; then
+        echo "  ok  $bin -> $(command -v "$bin")"
+    else
+        echo "  -- $bin not installed (GameMirror unavailable)"
     fi
 done
 

@@ -18,11 +18,6 @@ DEFAULT_APPS: list[dict[str, Any]] = [
         "label": "Telegram (Flatpak)",
         "command": ["flatpak", "run", "org.telegram.desktop"],
     },
-    {
-        "id": "xterm",
-        "label": "xterm (debug)",
-        "command": ["xterm"],
-    },
 ]
 
 # Defensive limits to keep settings.json from being weaponised as a

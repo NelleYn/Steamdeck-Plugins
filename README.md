@@ -124,7 +124,9 @@ bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 ## Features
 
 - **Apps panel** in Quick Access — built-in entries for Discord
-  (Flatpak), Telegram (Flatpak), xterm; one-tap launch.
+  (Flatpak) and Telegram (Flatpak); one-tap launch. (Add any other
+  command — including `xterm` if you want a debug terminal — via
+  the Custom-app form.)
 - **Custom apps** — register your own command from the panel
   (shlex-parsed argv, persisted server-side).
 - **Web-PiP mode** — load an arbitrary `http(s)://` URL in the PiP
@@ -138,9 +140,11 @@ bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 - **Per-game profile** — save current overlay (app, geom, opacity)
   for the foreground Steam app; toggle **auto-launch on this game**
   to start DeckPiP automatically when that game launches.
-- **Hotkeys** — **F10** toggles visibility, **F12 hold** sends
-  `ctrl+shift+m` to the guest (Discord PTT). Both work only when
-  Steam UI has keyboard focus; see TROUBLESHOOTING.
+- **Hotkeys** — **F10** toggles visibility, **F12 hold** acts as
+  push-to-talk by un-/muting the default PulseAudio source via
+  `pactl` (so it works with Discord, Mumble, Element, any voice
+  client; no Discord-specific binding needed). Both hotkeys require
+  Steam UI to have keyboard focus; see TROUBLESHOOTING.
 - **GameMirror** — when Discord is the active PiP, optional toggle
   spawns a gstreamer pipeline that mirrors the real gamescope output
   into Xvnc as a window named `GameMirror`, so Discord's Go Live can
