@@ -112,14 +112,33 @@ routes input straight to it, bypassing Steam UI's CEF. So:
 - They don't work while you're actively playing ❌
 - Touch / controller never trigger them (no DOM keydown)
 
-Workarounds today:
-- Bluetooth keyboard + open Quick Access first.
-- For PTT: configure Discord to use a different key combo and use the
-  controller-side keybinding tool of your choice to map a button to
-  that combo at the OS level.
+### Workaround: Steam Input → keyboard key
 
-Roadmap: hook into `gamescope_action_binding` so we can register a
-real system-level hotkey usable during gameplay.
+The most reliable way to wire L4/L5/R4/R5 (or the rear buttons on
+modded Decks) to DeckPiP's hotkeys is the Steam Controller Configurator:
+
+1. In Gaming Mode, while a game is running, press the **STEAM** button
+   → **Controller Settings** → **Edit Layout**.
+2. Pick the button you want (L4 is a popular one for show/hide).
+3. **Add Command** → **Keyboard** → press **F10** on a virtual / BT
+   keyboard.
+4. Save layout. **Apply Layout To: Per Game** or **Default**.
+5. Repeat for **F12** if you want PTT.
+
+Now while the game is focused, pressing L4 generates a synthetic F10
+keystroke that Gamescope routes through Steam UI (where our DOM
+listener picks it up).
+
+Repeat per game if you don't pick **Apply Default Layout**. If your
+PTT keys override game keys, set them in **Action Sets** instead of
+the default layout so they can be toggled mid-game.
+
+### Roadmap
+
+Gamescope has experimental support for plugin-registered global
+hotkeys (`gamescope_action_binding`), but the API is unstable. When it
+ships in a release we ship with, DeckPiP will register F10/F12 there
+directly and you won't need Steam Input config.
 
 ## "F12 PTT does nothing"
 

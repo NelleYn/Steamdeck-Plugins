@@ -7,9 +7,11 @@ import {
   batteryState as batteryStateCallable,
   getProfile,
   listApps,
+  ludusaviBackup,
   pauseSession,
   ptt as pttCallable,
   resumeSession,
+  settingsGet,
 } from "./api";
 import { Content, ROUTE, startFromUi } from "./panel";
 import { onAppLifecycle, onScreenshot } from "./steam";
@@ -194,6 +196,33 @@ function installNotificationListener(): () => void {
   };
 }
 
+/** Auto-backup saves via Ludusavi when a game stops, if the user
+ *  opted in. Best-effort: errors are toast-and-swallow.
+ *  Settings flag: ``auto_backup_on_stop`` (boolean). */
+function installAutoBackup(): () => void {
+  return onAppLifecycle(async ({ running }) => {
+    if (running) return; // only on stop
+    try {
+      const enabled = await settingsGet("auto_backup_on_stop", false);
+      if (!enabled) return;
+      const res = await ludusaviBackup(null);
+      if (res.ok) {
+        toaster.toast({
+          title: "DeckPiP",
+          body: `Auto-backup ok — ${res.summary?.games ?? "?"} games`,
+        });
+      } else {
+        toaster.toast({
+          title: "DeckPiP",
+          body: `Auto-backup failed (rc=${res.rc ?? "?"})`,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  });
+}
+
 /** When Steam captures a screenshot, offer to share it via the active
  *  PiP guest (copy the path to clipboard so the user can paste it into
  *  Discord/Telegram). No-op without an active session. */
@@ -222,6 +251,7 @@ export default definePlugin(() => {
   const removeBatteryWatcher = installBatteryWatcher();
   const removeNotifListener = installNotificationListener();
   const removeScreenshotHook = installScreenshotHook();
+  const removeAutoBackup = installAutoBackup();
   ensureHydrated();
   return {
     name: "DeckPiP",
@@ -240,6 +270,7 @@ export default definePlugin(() => {
       removeBatteryWatcher();
       removeNotifListener();
       removeScreenshotHook();
+      removeAutoBackup();
     },
   };
 });

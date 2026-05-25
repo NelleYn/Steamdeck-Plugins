@@ -143,6 +143,7 @@ export function Content() {
   const [ludusavi, setLudusavi] = useState<LudusaviStatus | null>(null);
   const [ludusaviBusy, setLudusaviBusy] = useState<string | null>(null);
   const [ludusaviResult, setLudusaviResult] = useState<unknown>(null);
+  const [autoBackup, setAutoBackup] = useState(false);
 
   useEffect(() => {
     ensureHydrated();
@@ -150,6 +151,7 @@ export function Content() {
     checkDeps().then(setDeps);
     listBookmarks().then(setBookmarks);
     ludusaviStatus().then(setLudusavi);
+    settingsGet("auto_backup_on_stop", false).then((v) => setAutoBackup(Boolean(v)));
     settingsGet("github_token", "").then((v) => setGithubToken(typeof v === "string" ? v : ""));
     // Read current foreground appid out of the store; this is best-effort.
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
@@ -646,6 +648,17 @@ export function Content() {
               >
                 {ludusaviBusy === "find" ? "Scanning…" : "Find detectable games"}
               </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ToggleField
+                label="Auto-backup on game stop"
+                description="When a game exits, run Ludusavi backup automatically"
+                checked={autoBackup}
+                onChange={async (v) => {
+                  setAutoBackup(v);
+                  await settingsSet("auto_backup_on_stop", v);
+                }}
+              />
             </PanelSectionRow>
           </>
         )}
