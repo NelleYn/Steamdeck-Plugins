@@ -107,6 +107,7 @@ class PipSession:
         self.guest: subprocess.Popen | None = None
         self.websockify: subprocess.Popen | None = None
         self.mirror: subprocess.Popen | None = None
+        self.paused: bool = False
 
     async def start(self) -> None:
         if shutil.which(self.app["command"][0]) is None:
@@ -188,3 +189,28 @@ class PipSession:
         # Best-effort cleanup of the per-session VNC password.
         with contextlib.suppress(FileNotFoundError):
             (self.runtime_dir / "vncpasswd").unlink()
+
+    def _signal_all(self, sig: int) -> None:
+        for proc in (self.mirror, self.websockify, self.guest, self.xvnc):
+            if proc is None or proc.poll() is not None:
+                continue
+            try:
+                pgid = os.getpgid(proc.pid)
+            except ProcessLookupError:
+                continue
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(pgid, sig)
+
+    def pause(self) -> None:
+        """SIGSTOP every child process group. Idempotent."""
+        if self.paused:
+            return
+        self._signal_all(signal.SIGSTOP)
+        self.paused = True
+
+    def resume(self) -> None:
+        """SIGCONT every child process group. Idempotent."""
+        if not self.paused:
+            return
+        self._signal_all(signal.SIGCONT)
+        self.paused = False

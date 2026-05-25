@@ -188,6 +188,20 @@ class Plugin:
             self.session.mirror = None
             return {"ok": True}
 
+    async def pause_session(self) -> dict:
+        async with self._get_lock():
+            if self.session is None:
+                return {"ok": False, "error": "no_session"}
+            self.session.pause()
+            return {"ok": True, "paused": True}
+
+    async def resume_session(self) -> dict:
+        async with self._get_lock():
+            if self.session is None:
+                return {"ok": False, "error": "no_session"}
+            self.session.resume()
+            return {"ok": True, "paused": False}
+
     # ----- per-game profiles -----------------------------------------------
 
     async def list_profiles(self) -> dict:

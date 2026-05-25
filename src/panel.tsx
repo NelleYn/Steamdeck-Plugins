@@ -264,6 +264,22 @@ export function Content() {
     setLocalProfile(null);
   };
 
+  const onSaveAsDefault = async () => {
+    const cur = store.get();
+    const next: GameProfile = {
+      app_id: running?.id ?? profile?.app_id ?? "discord_flatpak",
+      audio_only: running?.audio_only ?? false,
+      auto_launch: true,
+      geom: cur.geom,
+      opacity: cur.opacity,
+    };
+    await setProfile("default", next);
+    toaster.toast({
+      title: "DeckPiP",
+      body: "Saved as default profile (used when a game has no profile of its own)",
+    });
+  };
+
   const onDiagnostics = async () => setDiag(await diagnostics());
 
   const onCheckUpdate = async () => {
@@ -328,6 +344,14 @@ export function Content() {
               />
             </PanelSectionRow>
             <PanelSectionRow>
+              <ToggleField
+                label="Lock layout"
+                description="Disable drag and resize (anti-fumble)"
+                checked={s.locked}
+                onChange={(v) => store.set({ locked: v })}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
               <SliderField
                 label="Opacity"
                 value={s.opacity}
@@ -377,6 +401,11 @@ export function Content() {
                 )}
               </>
             )}
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={onSaveAsDefault}>
+                Save as default profile
+              </ButtonItem>
+            </PanelSectionRow>
           </>
         )}
       </PanelSection>
@@ -479,6 +508,27 @@ export function Content() {
           <ButtonItem layout="below" onClick={onAddApp}>
             Add
           </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title="Help">
+        <PanelSectionRow>
+          <div style={{ fontSize: 12, lineHeight: 1.5, color: "#bbb", padding: 4 }}>
+            <b>F10</b> — toggle overlay visibility.
+            <br />
+            <b>F12 hold</b> — push-to-talk (unmute default microphone).
+            <br />
+            <b>Drag</b> the title bar to move; bottom-right corner to resize.
+            Drop snaps to edges/center.
+            <br />
+            <b>Audio-only mode</b> keeps the guest alive without rendering the
+            iframe — useful for voice chat.
+            <br />
+            <b>Save default profile</b> in the running panel to apply the same
+            preset to any game that doesn't have its own.
+            <br />
+            Hotkeys only fire while Steam UI has keyboard focus.
+          </div>
         </PanelSectionRow>
       </PanelSection>
 

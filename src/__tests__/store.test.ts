@@ -42,6 +42,16 @@ describe("createStore", () => {
     expect(s.get().touchMode).toBe(true);
   });
 
+  it("persists and hydrates locked", () => {
+    const persist = vi.fn();
+    const s = createStore(persist);
+    s.set({ locked: true });
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ locked: true }));
+    const s2 = createStore();
+    s2.hydrate({ locked: true });
+    expect(s2.get().locked).toBe(true);
+  });
+
   it("hydrate() merges only known persisted keys", () => {
     const s = createStore();
     s.set({ url: "http://before" }, false);

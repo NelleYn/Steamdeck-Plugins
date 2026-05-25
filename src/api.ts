@@ -26,6 +26,9 @@ export const removeCustomApp = callable<[id: string], SimpleResult>("remove_cust
 export const startMirror = callable<[], SimpleResult>("start_game_mirror");
 export const stopMirror = callable<[], SimpleResult>("stop_game_mirror");
 
+export const pauseSession = callable<[], SimpleResult>("pause_session");
+export const resumeSession = callable<[], SimpleResult>("resume_session");
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

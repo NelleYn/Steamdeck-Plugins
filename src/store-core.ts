@@ -5,6 +5,7 @@ export type Persisted = {
   opacity: number;
   clickThrough: boolean;
   touchMode: boolean;
+  locked: boolean;
 };
 
 export type State = Persisted & {
@@ -21,6 +22,7 @@ export const DEFAULT_STATE: State = {
   opacity: 95,
   clickThrough: false,
   touchMode: false,
+  locked: false,
   visible: true,
   mirrorOn: false,
 };
@@ -58,6 +60,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
         opacity: state.opacity,
         clickThrough: state.clickThrough,
         touchMode: state.touchMode,
+        locked: state.locked,
       });
     }
   };
@@ -69,6 +72,7 @@ export function createStore(persistFn: PersistFn = () => {}): Store {
       opacity: typeof p.opacity === "number" ? p.opacity : state.opacity,
       clickThrough: typeof p.clickThrough === "boolean" ? p.clickThrough : state.clickThrough,
       touchMode: typeof p.touchMode === "boolean" ? p.touchMode : state.touchMode,
+      locked: typeof p.locked === "boolean" ? p.locked : state.locked,
     };
     listeners.forEach((l) => l());
   };
