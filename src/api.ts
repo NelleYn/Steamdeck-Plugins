@@ -56,6 +56,11 @@ export const installVendored = callable<[force: boolean], Record<string, unknown
   "install_vendored",
 );
 
+export const startNotificationMirror = callable<[], SimpleResult>("start_notification_mirror");
+export const stopNotificationMirror = callable<[], SimpleResult>("stop_notification_mirror");
+
+export type NotificationPayload = { app: string; summary: string; body: string };
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

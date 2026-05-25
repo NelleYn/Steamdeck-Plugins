@@ -37,8 +37,10 @@ import {
   settingsGet,
   settingsSet,
   startMirror,
+  startNotificationMirror,
   startPip,
   stopMirror,
+  stopNotificationMirror,
   stopPip,
 } from "./api";
 import { friendlyError } from "./errors";
@@ -127,6 +129,7 @@ export function Content() {
   const [githubToken, setGithubToken] = useState("");
   const [importPayload, setImportPayload] = useState("");
   const [guestVolume, setGuestVolumeUi] = useState(100);
+  const [notifMirror, setNotifMirror] = useState(false);
 
   useEffect(() => {
     ensureHydrated();
@@ -324,6 +327,15 @@ export function Content() {
   const onChangeGuestVolume = async (v: number) => {
     setGuestVolumeUi(v);
     await setGuestVolume(v);
+  };
+
+  const onToggleNotifMirror = async (v: boolean) => {
+    setNotifMirror(v);
+    const res = v ? await startNotificationMirror() : await stopNotificationMirror();
+    if (!res.ok) {
+      toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });
+      setNotifMirror(!v);
+    }
   };
 
   const onSaveAsDefault = async () => {
@@ -696,6 +708,14 @@ export function Content() {
             description="Below 20 % on battery: drop opacity, kill mirror"
             checked={s.lowBattery}
             onChange={(v) => store.set({ lowBattery: v })}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField
+            label="Mirror desktop notifications"
+            description="Discord/Telegram DMs from Xvnc to Decky toaster"
+            checked={notifMirror}
+            onChange={onToggleNotifMirror}
           />
         </PanelSectionRow>
 

@@ -30,6 +30,7 @@ from deckpip.bookmarks import (
 )
 from deckpip.diagnostics import collect as _diagnostics_collect
 from deckpip.mirror import start_mirror_window
+from deckpip.notifications import NotificationMirror
 from deckpip.profiles import (
     get_profile as _get_profile,
 )
@@ -55,6 +56,7 @@ class Plugin:
     session: PipSession | None = None
     _lock: asyncio.Lock | None = None
     _settings: SettingsStore | None = None
+    _notif_mirror: NotificationMirror | None = None
 
     def _get_lock(self) -> asyncio.Lock:
         if self._lock is None:
@@ -107,6 +109,28 @@ class Plugin:
         return await _vendor_install(
             Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
         )
+
+    # ----- D-Bus notification mirror ---------------------------------------
+
+    async def start_notification_mirror(self) -> dict:
+        if self._notif_mirror is not None:
+            return {"ok": False, "error": "already_running"}
+
+        async def _emit(payload: dict) -> None:
+            await decky.emit("deckpip_notification", payload)
+
+        self._notif_mirror = NotificationMirror(_emit)
+        res = await self._notif_mirror.start()
+        if not res["ok"]:
+            self._notif_mirror = None
+        return res
+
+    async def stop_notification_mirror(self) -> dict:
+        if self._notif_mirror is None:
+            return {"ok": True}
+        await self._notif_mirror.stop()
+        self._notif_mirror = None
+        return {"ok": True}
 
     async def install_dependencies(self) -> dict:
         script = Path(decky.DECKY_PLUGIN_DIR) / "defaults" / "install.sh"
@@ -291,6 +315,9 @@ class Plugin:
         decky.logger.info("DeckPiP loaded")
 
     async def _unload(self) -> None:
+        if self._notif_mirror is not None:
+            await self._notif_mirror.stop()
+            self._notif_mirror = None
         await self.stop_pip()
         decky.logger.info("DeckPiP unloaded")
 

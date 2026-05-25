@@ -1,8 +1,9 @@
-import { definePlugin, routerHook, toaster } from "@decky/api";
+import { addEventListener, definePlugin, removeEventListener, routerHook, toaster } from "@decky/api";
 import { staticClasses } from "@decky/ui";
 import { FaTv } from "react-icons/fa";
 
 import {
+  NotificationPayload,
   batteryState as batteryStateCallable,
   getProfile,
   listApps,
@@ -169,11 +170,36 @@ function installAutoLaunch(): () => void {
   });
 }
 
+function installNotificationListener(): () => void {
+  const handler = (payload: NotificationPayload) => {
+    if (!payload?.app) return;
+    const body = [payload.summary, payload.body].filter(Boolean).join(" — ");
+    try {
+      toaster.toast({ title: `${payload.app}`, body: body.slice(0, 200) });
+    } catch {
+      // ignore
+    }
+  };
+  try {
+    addEventListener<[NotificationPayload]>("deckpip_notification", handler);
+  } catch {
+    // event API may not be present; no-op
+  }
+  return () => {
+    try {
+      removeEventListener("deckpip_notification", handler);
+    } catch {
+      // ignore
+    }
+  };
+}
+
 export default definePlugin(() => {
   const removeHotkey = installHotkey();
   const removeAutoLaunch = installAutoLaunch();
   const removePauseScheduler = installPauseScheduler();
   const removeBatteryWatcher = installBatteryWatcher();
+  const removeNotifListener = installNotificationListener();
   ensureHydrated();
   return {
     name: "DeckPiP",
@@ -190,6 +216,7 @@ export default definePlugin(() => {
       removeAutoLaunch();
       removePauseScheduler();
       removeBatteryWatcher();
+      removeNotifListener();
     },
   };
 });
