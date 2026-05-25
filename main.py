@@ -29,6 +29,24 @@ from deckpip.bookmarks import (
     remove_bookmark as _remove_bookmark,
 )
 from deckpip.diagnostics import collect as _diagnostics_collect
+from deckpip.ludusavi import (
+    backup as _ludusavi_backup,
+)
+from deckpip.ludusavi import (
+    find_games as _ludusavi_find,
+)
+from deckpip.ludusavi import (
+    install as _ludusavi_install,
+)
+from deckpip.ludusavi import (
+    parse_backup_summary as _ludusavi_summary,
+)
+from deckpip.ludusavi import (
+    resolve_binary as _ludusavi_resolve,
+)
+from deckpip.ludusavi import (
+    restore as _ludusavi_restore,
+)
 from deckpip.mirror import start_mirror_window
 from deckpip.mpris import list_players as _mpris_list
 from deckpip.mpris import player_action as _mpris_action
@@ -161,6 +179,38 @@ class Plugin:
 
     async def mpris_action(self, bus_name: str, action: str) -> dict:
         return await _mpris_action(bus_name, action)
+
+    # ----- Ludusavi save sync ---------------------------------------------
+
+    async def ludusavi_status(self) -> dict:
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        return {
+            "installed": _ludusavi_resolve(rt) is not None,
+            "path": _ludusavi_resolve(rt) or "",
+        }
+
+    async def ludusavi_install(self, force: bool = False) -> dict:
+        return await _ludusavi_install(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+        )
+
+    async def ludusavi_backup(self, game: str | None = None) -> dict:
+        res = await _ludusavi_backup(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), game=game,
+        )
+        if res.get("ok") and isinstance(res.get("payload"), dict):
+            res["summary"] = _ludusavi_summary(res["payload"])
+        return res
+
+    async def ludusavi_restore(self, game: str | None = None) -> dict:
+        return await _ludusavi_restore(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), game=game,
+        )
+
+    async def ludusavi_find(self, query: str | None = None) -> dict:
+        return await _ludusavi_find(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), query=query,
+        )
 
     async def install_dependencies(self) -> dict:
         script = Path(decky.DECKY_PLUGIN_DIR) / "defaults" / "install.sh"

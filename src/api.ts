@@ -85,6 +85,32 @@ export const mprisAction = callable<
   SimpleResult
 >("mpris_action");
 
+// ----- Ludusavi save sync (works for non-Steam / pirated copies) --------
+
+export type LudusaviStatus = { installed: boolean; path: string };
+export type LudusaviResult = {
+  ok: boolean;
+  rc?: number;
+  payload?: unknown;
+  stderr?: string;
+  error?: string;
+  summary?: { games: number; total_bytes: number; errors: number };
+};
+
+export const ludusaviStatus = callable<[], LudusaviStatus>("ludusavi_status");
+export const ludusaviInstall = callable<[force: boolean], LudusaviResult>(
+  "ludusavi_install",
+);
+export const ludusaviBackup = callable<[game: string | null], LudusaviResult>(
+  "ludusavi_backup",
+);
+export const ludusaviRestore = callable<[game: string | null], LudusaviResult>(
+  "ludusavi_restore",
+);
+export const ludusaviFind = callable<[query: string | null], LudusaviResult>(
+  "ludusavi_find",
+);
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

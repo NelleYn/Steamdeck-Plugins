@@ -24,11 +24,17 @@ import {
   diagnostics,
   exportSettings,
   getProfile,
+  LudusaviStatus,
   importSettings,
   installDeps,
   installVendored,
   listApps,
   listBookmarks,
+  ludusaviBackup,
+  ludusaviFind,
+  ludusaviInstall,
+  ludusaviRestore,
+  ludusaviStatus,
   mprisAction,
   mprisList,
   removeBookmark,
@@ -134,12 +140,16 @@ export function Content() {
   const [guestVolume, setGuestVolumeUi] = useState(100);
   const [notifMirror, setNotifMirror] = useState(false);
   const [mprisPlayers, setMprisPlayers] = useState<MprisPlayer[]>([]);
+  const [ludusavi, setLudusavi] = useState<LudusaviStatus | null>(null);
+  const [ludusaviBusy, setLudusaviBusy] = useState<string | null>(null);
+  const [ludusaviResult, setLudusaviResult] = useState<unknown>(null);
 
   useEffect(() => {
     ensureHydrated();
     listApps().then(setApps);
     checkDeps().then(setDeps);
     listBookmarks().then(setBookmarks);
+    ludusaviStatus().then(setLudusavi);
     settingsGet("github_token", "").then((v) => setGithubToken(typeof v === "string" ? v : ""));
     // Read current foreground appid out of the store; this is best-effort.
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
@@ -344,6 +354,50 @@ export function Content() {
 
   const refreshMpris = async () => setMprisPlayers(await mprisList());
 
+  const refreshLudusavi = async () => setLudusavi(await ludusaviStatus());
+
+  const onLudusaviInstall = async () => {
+    setLudusaviBusy("install");
+    const res = await ludusaviInstall(false);
+    setLudusaviBusy(null);
+    await refreshLudusavi();
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok ? "Ludusavi installed" : `Install failed: ${res.error ?? "?"}`,
+    });
+  };
+
+  const onLudusaviBackup = async () => {
+    setLudusaviBusy("backup");
+    const res = await ludusaviBackup(null);
+    setLudusaviBusy(null);
+    setLudusaviResult(res);
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok
+        ? `Backup ok — ${res.summary?.games ?? "?"} games`
+        : `Backup failed: rc=${res.rc ?? "?"}`,
+    });
+  };
+
+  const onLudusaviRestore = async () => {
+    setLudusaviBusy("restore");
+    const res = await ludusaviRestore(null);
+    setLudusaviBusy(null);
+    setLudusaviResult(res);
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok ? "Restore ok" : `Restore failed: rc=${res.rc ?? "?"}`,
+    });
+  };
+
+  const onLudusaviFind = async () => {
+    setLudusaviBusy("find");
+    const res = await ludusaviFind(null);
+    setLudusaviBusy(null);
+    setLudusaviResult(res);
+  };
+
   const onMpris = async (bus: string, action: "PlayPause" | "Next" | "Previous") => {
     await mprisAction(bus, action);
     refreshMpris();
@@ -543,6 +597,77 @@ export function Content() {
             )}
           </PanelSectionRow>
         ))}
+      </PanelSection>
+
+      <PanelSection title="Save sync (Ludusavi)">
+        <PanelSectionRow>
+          <div style={{ fontSize: 11, color: "#bbb", padding: "4px 8px" }}>
+            Works for Steam, Flatpak, and non-Steam / pirated copies
+            (Ludusavi matches games by PCGamingWiki manifest, not by
+            Steam metadata).
+          </div>
+        </PanelSectionRow>
+        {!ludusavi?.installed && (
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              disabled={ludusaviBusy === "install"}
+              onClick={onLudusaviInstall}
+            >
+              {ludusaviBusy === "install" ? "Downloading Ludusavi…" : "Install Ludusavi"}
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
+        {ludusavi?.installed && (
+          <>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={ludusaviBusy !== null}
+                onClick={onLudusaviBackup}
+              >
+                {ludusaviBusy === "backup" ? "Backing up…" : "Backup all saves"}
+              </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={ludusaviBusy !== null}
+                onClick={onLudusaviRestore}
+              >
+                {ludusaviBusy === "restore" ? "Restoring…" : "Restore all saves"}
+              </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={ludusaviBusy !== null}
+                onClick={onLudusaviFind}
+              >
+                {ludusaviBusy === "find" ? "Scanning…" : "Find detectable games"}
+              </ButtonItem>
+            </PanelSectionRow>
+          </>
+        )}
+        {ludusaviResult !== null && (
+          <PanelSectionRow>
+            <pre
+              style={{
+                fontSize: 10,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                background: "#111",
+                color: "#ccc",
+                padding: 6,
+                borderRadius: 4,
+                maxHeight: 200,
+                overflow: "auto",
+              }}
+            >
+              {JSON.stringify(ludusaviResult, null, 2).slice(0, 4000)}
+            </pre>
+          </PanelSectionRow>
+        )}
       </PanelSection>
 
       <PanelSection title="Media">
