@@ -62,6 +62,7 @@ def test_plugin_class_has_required_methods() -> None:
         "vendor_status", "install_vendored",
         "start_notification_mirror", "stop_notification_mirror",
         "mouse_move", "mouse_button", "mouse_scroll",
+        "mpris_list", "mpris_action",
         "_main", "_unload", "_uninstall",
     ]:
         assert callable(getattr(plugin, name)), f"missing: {name}"

@@ -30,6 +30,8 @@ from deckpip.bookmarks import (
 )
 from deckpip.diagnostics import collect as _diagnostics_collect
 from deckpip.mirror import start_mirror_window
+from deckpip.mpris import list_players as _mpris_list
+from deckpip.mpris import player_action as _mpris_action
 from deckpip.notifications import NotificationMirror
 from deckpip.profiles import (
     get_profile as _get_profile,
@@ -151,6 +153,14 @@ class Plugin:
 
     async def mouse_scroll(self, direction: str) -> dict:
         return await _mouse_scroll(direction)
+
+    # ----- MPRIS media controls --------------------------------------------
+
+    async def mpris_list(self) -> list:
+        return await _mpris_list()
+
+    async def mpris_action(self, bus_name: str, action: str) -> dict:
+        return await _mpris_action(bus_name, action)
 
     async def install_dependencies(self) -> dict:
         script = Path(decky.DECKY_PLUGIN_DIR) / "defaults" / "install.sh"

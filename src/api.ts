@@ -69,6 +69,22 @@ export const mouseButton = callable<
 >("mouse_button");
 export const mouseScroll = callable<[direction: "up" | "down"], SimpleResult>("mouse_scroll");
 
+export type MprisPlayer = {
+  bus_name: string;
+  status?: "Playing" | "Paused" | "Stopped";
+  title?: string;
+  artist?: string;
+  album?: string;
+};
+export const mprisList = callable<[], MprisPlayer[]>("mpris_list");
+export const mprisAction = callable<
+  [
+    bus_name: string,
+    action: "Play" | "Pause" | "PlayPause" | "Next" | "Previous" | "Stop",
+  ],
+  SimpleResult
+>("mpris_action");
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

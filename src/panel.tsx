@@ -16,6 +16,7 @@ import {
   Bookmark,
   DepStatus,
   GameProfile,
+  MprisPlayer,
   addBookmark,
   addCustomApp,
   checkDeps,
@@ -28,6 +29,8 @@ import {
   installVendored,
   listApps,
   listBookmarks,
+  mprisAction,
+  mprisList,
   removeBookmark,
   removeCustomApp,
   removeProfile,
@@ -130,6 +133,7 @@ export function Content() {
   const [importPayload, setImportPayload] = useState("");
   const [guestVolume, setGuestVolumeUi] = useState(100);
   const [notifMirror, setNotifMirror] = useState(false);
+  const [mprisPlayers, setMprisPlayers] = useState<MprisPlayer[]>([]);
 
   useEffect(() => {
     ensureHydrated();
@@ -338,6 +342,13 @@ export function Content() {
     }
   };
 
+  const refreshMpris = async () => setMprisPlayers(await mprisList());
+
+  const onMpris = async (bus: string, action: "PlayPause" | "Next" | "Previous") => {
+    await mprisAction(bus, action);
+    refreshMpris();
+  };
+
   const onSaveAsDefault = async () => {
     const cur = store.get();
     const next: GameProfile = {
@@ -532,6 +543,45 @@ export function Content() {
             )}
           </PanelSectionRow>
         ))}
+      </PanelSection>
+
+      <PanelSection title="Media">
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={refreshMpris}>
+            {mprisPlayers.length === 0
+              ? "Find media players"
+              : `${mprisPlayers.length} media player${mprisPlayers.length === 1 ? "" : "s"}`}
+          </ButtonItem>
+        </PanelSectionRow>
+        {mprisPlayers.map((p) => {
+          const label = [p.title, p.artist].filter(Boolean).join(" — ") ||
+            p.bus_name.replace(/^org\.mpris\.MediaPlayer2\./, "");
+          return (
+            <div key={p.bus_name}>
+              <PanelSectionRow>
+                <div style={{ fontSize: 11, color: "#bbb", padding: "4px 8px" }}>
+                  {label}
+                  {p.status ? ` (${p.status})` : ""}
+                </div>
+              </PanelSectionRow>
+              <PanelSectionRow>
+                <ButtonItem layout="below" onClick={() => onMpris(p.bus_name, "Previous")}>
+                  ⏮ Prev
+                </ButtonItem>
+              </PanelSectionRow>
+              <PanelSectionRow>
+                <ButtonItem layout="below" onClick={() => onMpris(p.bus_name, "PlayPause")}>
+                  {p.status === "Playing" ? "⏸ Pause" : "▶ Play"}
+                </ButtonItem>
+              </PanelSectionRow>
+              <PanelSectionRow>
+                <ButtonItem layout="below" onClick={() => onMpris(p.bus_name, "Next")}>
+                  ⏭ Next
+                </ButtonItem>
+              </PanelSectionRow>
+            </div>
+          );
+        })}
       </PanelSection>
 
       <PanelSection title="Web PiP">
