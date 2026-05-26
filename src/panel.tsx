@@ -1217,7 +1217,7 @@ export function Content() {
         )}
         <PanelSectionRow>
           <TextField
-            label="GitHub PAT (for private repo updates)"
+            label="GitHub PAT (optional, higher rate limit)"
             value={githubToken}
             onChange={(e) => setGithubToken((e.target as HTMLInputElement).value)}
           />

@@ -86,6 +86,6 @@ jobs:
           prerelease: true
           body: |
             Automated build from the feature branch.
-            Repository is private, so this asset is only downloadable
-            when authenticated.
+            Direct zip URL (works anonymously now that the repo is public):
+            https://github.com/${{ github.repository }}/releases/download/dev/DeckPiP.zip
           files: build-pack/DeckPiP.zip

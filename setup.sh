@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
 # DeckPiP installer.
 #
-# Two supported workflows (the repo is private, so plain anonymous clone won't
-# work).
-#
-# A. From an already-checked-out copy (simplest, recommended):
+# A. From an already-checked-out copy (simplest):
 #      cd /path/to/Steamdeck-Plugins
 #      bash setup.sh
-#    The script detects it's inside a checkout (plugin.json + main.py + src/
-#    in the same directory) and skips the clone.
+#    Auto-detected via plugin.json + main.py + deckpip/ in the same dir.
 #
-# B. With a GitHub Personal Access Token:
-#      export GITHUB_TOKEN=ghp_xxx          # fine-grained PAT, "contents: read" on this repo
-#      curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#        https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh \
-#        | bash
-#    The PAT is forwarded to the inner git clone via the URL.
+# B. Fresh anonymous clone (repo is public):
+#      curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
 #
-# Prerequisites in both cases:
-#   - Decky Loader already installed (https://decky.xyz)
-#   - Working network connection
-#   - 'deck' user with a sudo password set
+# Optional: if GITHUB_TOKEN is exported it'll be forwarded to git clone for
+# higher rate limits, but anonymous clone now works fine.
+#
+# Prereqs: Decky Loader (https://decky.xyz), network, deck user with sudo.
 
 set -euo pipefail
 
@@ -64,11 +56,11 @@ else
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         REPO_URL_AUTH="https://oauth2:${GITHUB_TOKEN}@github.com/NelleYn/Steamdeck-Plugins.git"
     else
-        die "Repository is private. Either run this script from an existing checkout, or set GITHUB_TOKEN before running."
+        REPO_URL_AUTH="$REPO_URL"
     fi
     rm -rf "$SRC_DIR"
     git clone --depth 1 -b "$BRANCH" "$REPO_URL_AUTH" "$SRC_DIR" \
-        || die "git clone failed (check your token's permissions: contents: read on this repo)"
+        || die "git clone failed"
 fi
 
 cd "$SRC_DIR"
