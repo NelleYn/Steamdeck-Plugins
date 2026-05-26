@@ -16,6 +16,8 @@ export type State = Persisted & {
   url: string;
   visible: boolean;
   mirrorOn: boolean;
+  depsHealthy: boolean;
+  depsMissing: string[];
 };
 
 export const SETTINGS_KEY = "ui_state_v1";
@@ -33,6 +35,8 @@ export const DEFAULT_STATE: State = {
   inputMode: "drag",
   visible: true,
   mirrorOn: false,
+  depsHealthy: true,
+  depsMissing: [],
 };
 
 export type Store = {

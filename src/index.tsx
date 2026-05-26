@@ -5,6 +5,7 @@ import { FaTv } from "react-icons/fa";
 import {
   NotificationPayload,
   batteryState as batteryStateCallable,
+  checkDeps,
   cloudSyncUp,
   getProfile,
   listApps,
@@ -16,7 +17,7 @@ import {
 } from "./api";
 import { Content, ROUTE, startFromUi } from "./panel";
 import { onAppLifecycle, onScreenshot } from "./steam";
-import { ensureHydrated, store } from "./store";
+import { ensureHydrated, store, useStore } from "./store";
 
 // Decky's toaster is imported lazily so tests don't need to mock it.
 function toasterPort(): ((body: string) => void) | null {
@@ -62,9 +63,7 @@ function installHotkey(): () => void {
 const BATTERY_POLL_MS = 60_000;
 const LOW_BATTERY_THRESHOLD = 20;
 
-/** When the user enables low-battery mode, poll once a minute and apply
- *  a more conservative overlay (lower opacity, mirror off) once we drop
- *  below 20 % on battery. */
+/** Low-battery polling: drop opacity + mirror when on battery and <20 %. */
 function installBatteryWatcher(): () => void {
   let timer: ReturnType<typeof setInterval> | null = null;
   let applied = false;
@@ -92,13 +91,8 @@ function installBatteryWatcher(): () => void {
   };
 }
 
-
-/**
- * SIGSTOP the Xvnc + guest process group when the overlay has been hidden
- * for more than PAUSE_DELAY_MS. Resume immediately on show. The hidden cost
- * (~5–15 % CPU on a running game depending on guest) drops to zero while
- * the user can't see the PiP anyway.
- */
+/** SIGSTOP Xvnc+guest after the overlay has been hidden for 5 s; SIGCONT on
+ *  show. Drops idle CPU cost to zero while the user can't see the PiP. */
 function installPauseScheduler(): () => void {
   let pauseTimer: ReturnType<typeof setTimeout> | null = null;
   let isPaused = false;
@@ -133,8 +127,7 @@ function installPauseScheduler(): () => void {
   });
 }
 
-/** Look up the profile for an appid, falling back to a "default" profile
- *  the user can save without picking a specific game. */
+/** Look up the profile for an appid, falling back to a "default" profile. */
 async function resolveProfile(appid: number) {
   const direct = await getProfile(String(appid));
   if (direct) return direct;
@@ -143,7 +136,6 @@ async function resolveProfile(appid: number) {
 
 function installAutoLaunch(): () => void {
   return onAppLifecycle(async ({ appid, running }) => {
-    // Expose to the panel so the running session can show "Save profile for <game>".
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
     if (running) {
       w.__DECKPIP_CURRENT_APPID__ = appid;
@@ -186,7 +178,7 @@ function installNotificationListener(): () => void {
   try {
     addEventListener<[NotificationPayload]>("deckpip_notification", handler);
   } catch {
-    // event API may not be present; no-op
+    // ignore
   }
   return () => {
     try {
@@ -197,12 +189,11 @@ function installNotificationListener(): () => void {
   };
 }
 
-/** Auto-backup saves via Ludusavi when a game stops, if the user
- *  opted in. Best-effort: errors are toast-and-swallow.
- *  Settings flag: ``auto_backup_on_stop`` (boolean). */
+/** Auto-backup saves via Ludusavi when a game stops, optionally followed
+ *  by an rclone sync. Best-effort; errors land in toasts. */
 function installAutoBackup(): () => void {
   return onAppLifecycle(async ({ running }) => {
-    if (running) return; // only on stop
+    if (running) return;
     try {
       const enabled = await settingsGet("auto_backup_on_stop", false);
       if (!enabled) return;
@@ -242,9 +233,8 @@ function installAutoBackup(): () => void {
   });
 }
 
-/** When Steam captures a screenshot, offer to share it via the active
- *  PiP guest (copy the path to clipboard so the user can paste it into
- *  Discord/Telegram). No-op without an active session. */
+/** On Steam screenshot, copy path to clipboard so the user can paste it
+ *  into the active PiP guest. */
 function installScreenshotHook(): () => void {
   return onScreenshot(async ({ path }) => {
     if (!store.get().url || !path) return;
@@ -263,6 +253,67 @@ function installScreenshotHook(): () => void {
   });
 }
 
+const DEPS_POLL_MS = 60_000;
+
+/** Required pacman deps survival check.
+ *
+ *  SteamOS resets its read-only root on every system update, which silently
+ *  uninstalls tigervnc and friends. We poll once a minute and surface the
+ *  result in two places:
+ *    1. A red marker in the plugin title view (always visible in QA).
+ *    2. A "Setup required" callout at the top of the panel content with a
+ *       one-tap reinstall button.
+ *  Plus a single toast on first detection so the user gets nudged. */
+function installDepsHealthCheck(): () => void {
+  let prevHealthy = true;
+  let toldUser = false;
+  const tick = async () => {
+    try {
+      const d = await checkDeps();
+      const missing: string[] = Object.entries(d)
+        .filter(([k, ok]) => !k.startsWith("_optional_") && !ok)
+        .map(([k]) => k);
+      const healthy = missing.length === 0;
+      store.set({ depsHealthy: healthy, depsMissing: missing }, false);
+      if (!healthy && (prevHealthy || !toldUser)) {
+        toldUser = true;
+        try {
+          toaster.toast({
+            title: "DeckPiP",
+            body:
+              "Setup required — pacman deps missing (likely after a SteamOS " +
+              "update). Open DeckPiP -> Setup required -> Reinstall.",
+          });
+        } catch {
+          // ignore
+        }
+      } else if (healthy && !prevHealthy) {
+        toldUser = false;
+      }
+      prevHealthy = healthy;
+    } catch {
+      // ignore
+    }
+  };
+  tick();
+  const interval = setInterval(tick, DEPS_POLL_MS);
+  return () => clearInterval(interval);
+}
+
+function TitleView() {
+  const s = useStore();
+  return (
+    <div className={staticClasses.Title}>
+      DeckPiP
+      {!s.depsHealthy && (
+        <span title={`Missing: ${s.depsMissing.join(", ")}`} style={{ marginLeft: 6 }}>
+          🔴
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default definePlugin(() => {
   const removeHotkey = installHotkey();
   const removeAutoLaunch = installAutoLaunch();
@@ -271,10 +322,11 @@ export default definePlugin(() => {
   const removeNotifListener = installNotificationListener();
   const removeScreenshotHook = installScreenshotHook();
   const removeAutoBackup = installAutoBackup();
+  const removeHealthCheck = installDepsHealthCheck();
   ensureHydrated();
   return {
     name: "DeckPiP",
-    titleView: <div className={staticClasses.Title}>DeckPiP</div>,
+    titleView: <TitleView />,
     content: <Content />,
     icon: <FaTv />,
     onDismount() {
@@ -290,6 +342,7 @@ export default definePlugin(() => {
       removeNotifListener();
       removeScreenshotHook();
       removeAutoBackup();
+      removeHealthCheck();
     },
   };
 });

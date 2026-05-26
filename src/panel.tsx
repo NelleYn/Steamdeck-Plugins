@@ -515,8 +515,7 @@ export function Content() {
     toaster.toast({ title: "DeckPiP", body: "GitHub token saved" });
   };
 
-  if (running) {
-    return (
+  if (running) {    return (
       <PanelSection title={`DeckPiP — ${running.label}`}>
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={onStop}>
@@ -650,6 +649,24 @@ export function Content() {
 
   return (
     <>
+      {!s.depsHealthy && (
+        <PanelSection title="⚠ Setup required">
+          <PanelSectionRow>
+            <div style={{ fontSize: 12, color: "#fbb", padding: 4 }}>
+              Required packages are missing: <b>{s.depsMissing.join(", ")}</b>.
+              <br />
+              This usually means SteamOS just applied a system update and
+              wiped pacman packages. One tap fixes it:
+            </div>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" disabled={installing} onClick={onInstallDeps}>
+              {installing ? "Reinstalling…" : "Reinstall pacman deps"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </PanelSection>
+      )}
+
       <PanelSection title="Apps">
         <PanelSectionRow>
           <ToggleField
