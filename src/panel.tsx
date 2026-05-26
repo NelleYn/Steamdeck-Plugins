@@ -3,6 +3,7 @@ import {
   PanelSection,
   PanelSectionRow,
   SliderField,
+  Tabs,
   TextField,
   ToggleField,
   Navigation,
@@ -162,6 +163,8 @@ export function Content() {
   const [discovered, setDiscovered] = useState<DiscoveredApp[]>([]);
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverFilter, setDiscoverFilter] = useState("");
+  type TabId = "apps" | "sync" | "web" | "system";
+  const [activeTab, setActiveTab] = useState<TabId>("apps");
 
   useEffect(() => {
     ensureHydrated();
@@ -758,6 +761,15 @@ export function Content() {
         </PanelSection>
       )}
 
+      <Tabs
+        activeTab={activeTab}
+        onShowTab={(t: string) => setActiveTab(t as TabId)}
+        tabs={[
+          {
+            id: "apps",
+            title: "Apps",
+            content: (
+              <>
       <PanelSection title="Apps">
         <PanelSectionRow>
           <ToggleField
@@ -785,6 +797,14 @@ export function Content() {
         ))}
       </PanelSection>
 
+              </>
+            ),
+          },
+          {
+            id: "sync",
+            title: "Sync",
+            content: (
+              <>
       <PanelSection title="Save sync (Ludusavi)">
         <PanelSectionRow>
           <div style={{ fontSize: 11, color: "#bbb", padding: "4px 8px" }}>
@@ -1005,6 +1025,14 @@ export function Content() {
         })}
       </PanelSection>
 
+              </>
+            ),
+          },
+          {
+            id: "web",
+            title: "Web",
+            content: (
+              <>
       <PanelSection title="Web PiP">
         <PanelSectionRow>
           <TextField
@@ -1125,6 +1153,14 @@ export function Content() {
         </PanelSectionRow>
       </PanelSection>
 
+              </>
+            ),
+          },
+          {
+            id: "system",
+            title: "System",
+            content: (
+              <>
       <PanelSection title="Help">
         <PanelSectionRow>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: "#bbb", padding: 4 }}>
@@ -1277,6 +1313,11 @@ export function Content() {
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
+              </>
+            ),
+          },
+        ]}
+      />
     </>
   );
 }
