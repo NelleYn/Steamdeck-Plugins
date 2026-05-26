@@ -64,7 +64,7 @@ jobs:
           mkdir -p build-pack/DeckPiP
           find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
           cp -r plugin.json main.py deckpip defaults dist \
-              package.json README.md LICENSE \
+              package.json README.md LICENSE setup.sh \
               build-pack/DeckPiP/
           cd build-pack
           zip -qr DeckPiP.zip DeckPiP

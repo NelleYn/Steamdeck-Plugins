@@ -90,7 +90,7 @@ sudo mkdir -p "$PLUGIN_DIR"
 # Strip any local __pycache__ that pytest may have produced.
 find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 sudo cp -r \
-    plugin.json main.py deckpip defaults dist package.json README.md LICENSE \
+    plugin.json main.py deckpip defaults dist package.json README.md LICENSE setup.sh \
     "$PLUGIN_DIR/"
 sudo chown -R deck:deck "$PLUGIN_DIR"
 

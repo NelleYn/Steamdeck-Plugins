@@ -37,6 +37,7 @@ cp -r \
     package.json \
     README.md \
     LICENSE \
+    setup.sh \
     "$OUT_DIR/$NAME/"
 
 cd "$OUT_DIR"

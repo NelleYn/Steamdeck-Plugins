@@ -561,14 +561,44 @@ export function Content() {
   const onDiagnostics = async () => setDiag(await diagnostics());
 
   const onCheckUpdate = async () => {
-    const info = await checkUpdate();
+    const info = (await checkUpdate()) as {
+      ok?: boolean;
+      error?: string;
+      hint?: string;
+      tag_name?: string;
+      published_at?: string;
+    };
     setUpdateInfo(info);
-    toaster.toast({ title: "DeckPiP", body: JSON.stringify(info).slice(0, 200) });
+    if (info.ok) {
+      toaster.toast({
+        title: "DeckPiP",
+        body: `Latest release: ${info.tag_name ?? "?"} (${info.published_at ?? ""})`,
+      });
+    } else {
+      toaster.toast({
+        title: "DeckPiP",
+        body:
+          info.hint ??
+          `Update check failed: ${info.error ?? "unknown"}`,
+      });
+    }
   };
 
   const onRunUpdate = async () => {
-    const res = await runUpdate();
-    toaster.toast({ title: "DeckPiP", body: JSON.stringify(res).slice(0, 200) });
+    const res = (await runUpdate()) as {
+      ok?: boolean;
+      error?: string;
+      hint?: string;
+      rc?: number;
+    };
+    if (res.ok) {
+      toaster.toast({ title: "DeckPiP", body: "Update finished — reload Decky to apply" });
+    } else {
+      toaster.toast({
+        title: "DeckPiP",
+        body: res.hint ?? `Update failed (rc=${res.rc ?? "?"}): ${res.error ?? "unknown"}`,
+      });
+    }
   };
 
   const onSaveToken = async () => {

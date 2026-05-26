@@ -22,6 +22,11 @@ def _install_decky_stub() -> None:
     fake.DECKY_PLUGIN_RUNTIME_DIR = "/tmp/deckpip-test-runtime"  # type: ignore[attr-defined]
     fake.DECKY_PLUGIN_DIR = str(Path(__file__).parent.parent)  # type: ignore[attr-defined]
 
+    async def _emit(*_a, **_kw):  # type: ignore[no-untyped-def]
+        return None
+
+    fake.emit = _emit  # type: ignore[attr-defined]
+
     class _Logger:
         def __getattr__(self, _name: str):  # pragma: no cover
             return lambda *_a, **_kw: None
