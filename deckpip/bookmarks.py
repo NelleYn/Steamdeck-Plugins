@@ -1,4 +1,4 @@
-"""User-saved URLs for the Web-PiP mode."""
+"""User-saved http(s) URLs for the Web-PiP mode."""
 
 from __future__ import annotations
 

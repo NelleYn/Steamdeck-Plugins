@@ -20,8 +20,6 @@ DEFAULT_APPS: list[dict[str, Any]] = [
     },
 ]
 
-# Defensive limits to keep settings.json from being weaponised as a
-# memory hog by a misbehaving frontend or hand-edited config.
 LABEL_MAX = 256
 COMMAND_MAX = 1024
 ID_MAX = 64

@@ -1,13 +1,4 @@
-"""Per-game launch profiles keyed by Steam appid.
-
-Maps an appid -> {
-    "app_id":      str,            # which DeckPiP app to launch (xterm, discord_flatpak, custom_...)
-    "audio_only":  bool,
-    "auto_launch": bool,           # start automatically when this Steam app starts
-    "geom":        {x,y,w,h}|None, # overlay geometry override; if None, use global default
-    "opacity":     int|None,
-}
-"""
+"""Per-game launch profiles keyed by Steam appid."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Battery state reader: pure /sys/class/power_supply, no extra deps."""
+"""/sys/class/power_supply reader, no external deps."""
 
 from __future__ import annotations
 
@@ -12,17 +12,14 @@ def _find_battery() -> Path | None:
         return None
     for entry in BATTERY_ROOT.iterdir():
         try:
-            t = (entry / "type").read_text().strip()
+            if (entry / "type").read_text().strip() == "Battery":
+                return entry
         except OSError:
             continue
-        if t == "Battery":
-            return entry
     return None
 
 
 def read_state() -> dict:
-    """Return ``{percent, charging, on_battery, present}`` or
-    ``{present: False}`` if no battery is exposed (desktop / dock)."""
     bat = _find_battery()
     if bat is None:
         return {"present": False}
