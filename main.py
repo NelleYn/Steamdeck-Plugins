@@ -28,9 +28,27 @@ from deckpip.bookmarks import (
 from deckpip.bookmarks import (
     remove_bookmark as _remove_bookmark,
 )
+from deckpip.cloud_sync import (
+    install as _rclone_install,
+)
+from deckpip.cloud_sync import (
+    list_remotes as _rclone_list,
+)
+from deckpip.cloud_sync import (
+    resolve_binary as _rclone_resolve,
+)
+from deckpip.cloud_sync import (
+    sync_down as _rclone_sync_down,
+)
+from deckpip.cloud_sync import (
+    sync_up as _rclone_sync_up,
+)
 from deckpip.diagnostics import collect as _diagnostics_collect
 from deckpip.ludusavi import (
     backup as _ludusavi_backup,
+)
+from deckpip.ludusavi import (
+    default_backup_dir as _ludusavi_backup_dir,
 )
 from deckpip.ludusavi import (
     find_games as _ludusavi_find,
@@ -210,6 +228,36 @@ class Plugin:
     async def ludusavi_find(self, query: str | None = None) -> dict:
         return await _ludusavi_find(
             Path(decky.DECKY_PLUGIN_RUNTIME_DIR), query=query,
+        )
+
+    # ----- Cloud sync for Ludusavi backups (rclone) ------------------------
+
+    async def rclone_status(self) -> dict:
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        return {
+            "installed": _rclone_resolve(rt) is not None,
+            "path": _rclone_resolve(rt) or "",
+            "config_file": str(Path.home() / ".config" / "rclone" / "rclone.conf"),
+        }
+
+    async def rclone_install(self, force: bool = False) -> dict:
+        return await _rclone_install(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+        )
+
+    async def rclone_remotes(self) -> dict:
+        return await _rclone_list(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+
+    async def cloud_sync_up(self, remote: str, path: str) -> dict:
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        return await _rclone_sync_up(
+            rt, _ludusavi_backup_dir(rt), remote, path,
+        )
+
+    async def cloud_sync_down(self, remote: str, path: str) -> dict:
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        return await _rclone_sync_down(
+            rt, _ludusavi_backup_dir(rt), remote, path,
         )
 
     async def install_dependencies(self) -> dict:

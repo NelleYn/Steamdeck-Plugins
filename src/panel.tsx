@@ -25,6 +25,9 @@ import {
   exportSettings,
   getProfile,
   LudusaviStatus,
+  RcloneStatus,
+  cloudSyncDown,
+  cloudSyncUp,
   importSettings,
   installDeps,
   installVendored,
@@ -37,6 +40,9 @@ import {
   ludusaviStatus,
   mprisAction,
   mprisList,
+  rcloneInstall,
+  rcloneRemotes,
+  rcloneStatus,
   removeBookmark,
   removeCustomApp,
   removeProfile,
@@ -144,6 +150,12 @@ export function Content() {
   const [ludusaviBusy, setLudusaviBusy] = useState<string | null>(null);
   const [ludusaviResult, setLudusaviResult] = useState<unknown>(null);
   const [autoBackup, setAutoBackup] = useState(false);
+  const [rclone, setRclone] = useState<RcloneStatus | null>(null);
+  const [rcloneBusy, setRcloneBusy] = useState<string | null>(null);
+  const [rcloneRemoteList, setRcloneRemoteList] = useState<string[]>([]);
+  const [cloudRemote, setCloudRemote] = useState("");
+  const [cloudPath, setCloudPath] = useState("DeckPiP/backups");
+  const [autoCloudSync, setAutoCloudSync] = useState(false);
 
   useEffect(() => {
     ensureHydrated();
@@ -151,7 +163,13 @@ export function Content() {
     checkDeps().then(setDeps);
     listBookmarks().then(setBookmarks);
     ludusaviStatus().then(setLudusavi);
+    rcloneStatus().then(setRclone);
     settingsGet("auto_backup_on_stop", false).then((v) => setAutoBackup(Boolean(v)));
+    settingsGet("auto_cloud_sync", false).then((v) => setAutoCloudSync(Boolean(v)));
+    settingsGet("cloud_remote", "").then((v) => setCloudRemote(typeof v === "string" ? v : ""));
+    settingsGet("cloud_path", "DeckPiP/backups").then(
+      (v) => setCloudPath(typeof v === "string" && v ? v : "DeckPiP/backups"),
+    );
     settingsGet("github_token", "").then((v) => setGithubToken(typeof v === "string" ? v : ""));
     // Read current foreground appid out of the store; this is best-effort.
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
@@ -398,6 +416,47 @@ export function Content() {
     const res = await ludusaviFind(null);
     setLudusaviBusy(null);
     setLudusaviResult(res);
+  };
+
+  const refreshRclone = async () => setRclone(await rcloneStatus());
+
+  const onRcloneInstall = async () => {
+    setRcloneBusy("install");
+    const res = await rcloneInstall(false);
+    setRcloneBusy(null);
+    await refreshRclone();
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok ? "rclone installed" : `rclone install failed: ${res.error ?? "?"}`,
+    });
+  };
+
+  const onRcloneListRemotes = async () => {
+    setRcloneBusy("list");
+    const res = await rcloneRemotes();
+    setRcloneBusy(null);
+    setRcloneRemoteList(res.remotes ?? []);
+    if (!res.ok) {
+      toaster.toast({
+        title: "DeckPiP",
+        body: `Couldn't read remotes — run "rclone config" first`,
+      });
+    }
+  };
+
+  const onCloudSync = async (direction: "up" | "down") => {
+    if (!cloudRemote.trim()) {
+      toaster.toast({ title: "DeckPiP", body: "Enter a remote name first" });
+      return;
+    }
+    setRcloneBusy(direction);
+    const fn = direction === "up" ? cloudSyncUp : cloudSyncDown;
+    const res = await fn(cloudRemote.trim(), cloudPath.trim());
+    setRcloneBusy(null);
+    toaster.toast({
+      title: "DeckPiP",
+      body: res.ok ? `Sync ${direction} ok` : `Sync ${direction} failed: rc=${res.rc ?? "?"}`,
+    });
   };
 
   const onMpris = async (bus: string, action: "PlayPause" | "Next" | "Previous") => {
@@ -680,6 +739,105 @@ export function Content() {
               {JSON.stringify(ludusaviResult, null, 2).slice(0, 4000)}
             </pre>
           </PanelSectionRow>
+        )}
+      </PanelSection>
+
+      <PanelSection title="Cloud sync (rclone)">
+        <PanelSectionRow>
+          <div style={{ fontSize: 11, color: "#bbb", padding: "4px 8px" }}>
+            Push Ludusavi backups to Google Drive / Dropbox / OneDrive / S3 /
+            SFTP / WebDAV — anything rclone supports. Configure remotes
+            once in Desktop Mode with <b>rclone config</b>; we read{" "}
+            {rclone?.config_file ?? "~/.config/rclone/rclone.conf"}.
+          </div>
+        </PanelSectionRow>
+        {!rclone?.installed && (
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              disabled={rcloneBusy === "install"}
+              onClick={onRcloneInstall}
+            >
+              {rcloneBusy === "install" ? "Downloading rclone…" : "Install rclone"}
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
+        {rclone?.installed && (
+          <>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={rcloneBusy !== null}
+                onClick={onRcloneListRemotes}
+              >
+                {rcloneBusy === "list"
+                  ? "Reading remotes…"
+                  : rcloneRemoteList.length > 0
+                  ? `${rcloneRemoteList.length} remote${
+                      rcloneRemoteList.length === 1 ? "" : "s"
+                    } detected`
+                  : "List configured remotes"}
+              </ButtonItem>
+            </PanelSectionRow>
+            {rcloneRemoteList.length > 0 && (
+              <PanelSectionRow>
+                <div style={{ fontSize: 11, color: "#888", padding: "0 8px" }}>
+                  Available: {rcloneRemoteList.join(", ")}
+                </div>
+              </PanelSectionRow>
+            )}
+            <PanelSectionRow>
+              <TextField
+                label="Remote name"
+                value={cloudRemote}
+                onChange={async (e) => {
+                  const v = (e.target as HTMLInputElement).value;
+                  setCloudRemote(v);
+                  await settingsSet("cloud_remote", v);
+                }}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <TextField
+                label="Remote path"
+                value={cloudPath}
+                onChange={async (e) => {
+                  const v = (e.target as HTMLInputElement).value;
+                  setCloudPath(v);
+                  await settingsSet("cloud_path", v);
+                }}
+              />
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={rcloneBusy !== null}
+                onClick={() => onCloudSync("up")}
+              >
+                {rcloneBusy === "up" ? "Syncing up…" : "Sync backups to cloud"}
+              </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                disabled={rcloneBusy !== null}
+                onClick={() => onCloudSync("down")}
+              >
+                {rcloneBusy === "down" ? "Syncing down…" : "Pull backups from cloud"}
+              </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ToggleField
+                label="Auto-sync after each backup"
+                description="Pushes to the cloud remote whenever Ludusavi finishes a backup"
+                checked={autoCloudSync}
+                onChange={async (v) => {
+                  setAutoCloudSync(v);
+                  await settingsSet("auto_cloud_sync", v);
+                }}
+              />
+            </PanelSectionRow>
+          </>
         )}
       </PanelSection>
 

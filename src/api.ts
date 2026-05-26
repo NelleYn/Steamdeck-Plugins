@@ -111,6 +111,28 @@ export const ludusaviFind = callable<[query: string | null], LudusaviResult>(
   "ludusavi_find",
 );
 
+// ----- Cloud sync for Ludusavi backups (rclone) -------------------------
+
+export type RcloneStatus = { installed: boolean; path: string; config_file: string };
+export type RcloneSyncResult = {
+  ok: boolean;
+  rc?: number;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+  remotes?: string[];
+};
+
+export const rcloneStatus = callable<[], RcloneStatus>("rclone_status");
+export const rcloneInstall = callable<[force: boolean], RcloneSyncResult>("rclone_install");
+export const rcloneRemotes = callable<[], RcloneSyncResult>("rclone_remotes");
+export const cloudSyncUp = callable<[remote: string, path: string], RcloneSyncResult>(
+  "cloud_sync_up",
+);
+export const cloudSyncDown = callable<[remote: string, path: string], RcloneSyncResult>(
+  "cloud_sync_down",
+);
+
 // ----- per-game profiles ---------------------------------------------------
 
 export type GameProfile = {

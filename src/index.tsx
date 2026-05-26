@@ -5,6 +5,7 @@ import { FaTv } from "react-icons/fa";
 import {
   NotificationPayload,
   batteryState as batteryStateCallable,
+  cloudSyncUp,
   getProfile,
   listApps,
   ludusaviBackup,
@@ -216,7 +217,25 @@ function installAutoBackup(): () => void {
           title: "DeckPiP",
           body: `Auto-backup failed (rc=${res.rc ?? "?"})`,
         });
+        return;
       }
+      const autoCloud = await settingsGet("auto_cloud_sync", false);
+      if (!autoCloud) return;
+      const remote = (await settingsGet("cloud_remote", "")) as string;
+      const path = ((await settingsGet("cloud_path", "DeckPiP/backups")) as string) ||
+        "DeckPiP/backups";
+      if (!remote) {
+        toaster.toast({
+          title: "DeckPiP",
+          body: "Auto-cloud-sync skipped: no remote configured",
+        });
+        return;
+      }
+      const sync = await cloudSyncUp(remote, path);
+      toaster.toast({
+        title: "DeckPiP",
+        body: sync.ok ? "Cloud sync up ok" : `Cloud sync failed (rc=${sync.rc ?? "?"})`,
+      });
     } catch {
       // ignore
     }
