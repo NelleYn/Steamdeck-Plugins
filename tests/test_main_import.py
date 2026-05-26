@@ -68,6 +68,7 @@ def test_plugin_class_has_required_methods() -> None:
         "rclone_status", "rclone_install", "rclone_remotes",
         "cloud_sync_up", "cloud_sync_down",
         "install_everything",
+        "discover_installed_apps",
         "_main", "_unload", "_uninstall",
     ]:
         assert callable(getattr(plugin, name)), f"missing: {name}"

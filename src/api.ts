@@ -13,6 +13,16 @@ export type InstallResult = {
 export type SimpleResult = { ok: boolean; error?: string };
 
 export const listApps = callable<[], AppEntry[]>("list_apps");
+
+export type DiscoveredApp = {
+  name: string;
+  exec: string;
+  kind: "flatpak" | "desktop";
+  id: string;
+};
+export const discoverInstalledApps = callable<[], DiscoveredApp[]>(
+  "discover_installed_apps",
+);
 export const checkDeps = callable<[], DepStatus>("check_dependencies");
 export const installDeps = callable<[], InstallResult>("install_dependencies");
 export const startPip = callable<[app_id: string, audio_only: boolean], StartResult>("start_pip");

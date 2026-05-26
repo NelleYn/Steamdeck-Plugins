@@ -15,6 +15,7 @@ import {
   AppEntry,
   Bookmark,
   DepStatus,
+  DiscoveredApp,
   GameProfile,
   MprisPlayer,
   addBookmark,
@@ -22,6 +23,7 @@ import {
   checkDeps,
   checkUpdate,
   diagnostics,
+  discoverInstalledApps,
   exportSettings,
   getProfile,
   LudusaviStatus,
@@ -157,6 +159,9 @@ export function Content() {
   const [cloudRemote, setCloudRemote] = useState("");
   const [cloudPath, setCloudPath] = useState("DeckPiP/backups");
   const [autoCloudSync, setAutoCloudSync] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredApp[]>([]);
+  const [discoverBusy, setDiscoverBusy] = useState(false);
+  const [discoverFilter, setDiscoverFilter] = useState("");
 
   useEffect(() => {
     ensureHydrated();
@@ -270,6 +275,62 @@ export function Content() {
       toaster.toast({ title: "DeckPiP", body: "GameMirror window created in Xvnc :42" });
     }
   };
+
+  const refreshDiscovered = async () => {
+    setDiscoverBusy(true);
+    try {
+      setDiscovered(await discoverInstalledApps());
+    } finally {
+      setDiscoverBusy(false);
+    }
+  };
+
+  const onRunDiscovered = async (app: DiscoveredApp) => {
+    setBusy(true);
+    const suffix =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+    const transient: AppEntry = { id: `__transient_${suffix}`, label: app.name };
+    // We register the command as a temporary custom app so the existing
+    // start_pip flow can find it by id, then immediately drop it again.
+    const add = await addCustomApp(transient.id, app.name, app.exec);
+    if (!add.ok) {
+      setBusy(false);
+      toaster.toast({ title: "DeckPiP", body: friendlyError(add.error) });
+      return;
+    }
+    const ok = await startFromUi(transient, audioOnlyOnStart);
+    setBusy(false);
+    // Whether it ran or not, drop the transient entry so the Apps list
+    // stays clean.
+    await removeCustomApp(transient.id);
+    if (ok) {
+      setRunning({ id: transient.id, label: app.name, audio_only: audioOnlyOnStart });
+    }
+  };
+
+  const onSaveDiscovered = async (app: DiscoveredApp) => {
+    const suffix =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+    const id = `custom_${suffix}`;
+    const res = await addCustomApp(id, app.name, app.exec);
+    if (!res.ok) {
+      toaster.toast({ title: "DeckPiP", body: friendlyError(res.error) });
+      return;
+    }
+    await refreshApps();
+    toaster.toast({ title: "DeckPiP", body: `Saved “${app.name}” to Apps` });
+  };
+
+  const filteredDiscovered =
+    discoverFilter.trim() === ""
+      ? discovered
+      : discovered.filter((a) =>
+          a.name.toLowerCase().includes(discoverFilter.trim().toLowerCase()),
+        );
 
   const onAddApp = async () => {
     if (!newAppLabel.trim() || !newAppCmd.trim()) return;
@@ -960,6 +1021,56 @@ export function Content() {
             Save bookmark
           </ButtonItem>
         </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title="Installed apps">
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={discoverBusy} onClick={refreshDiscovered}>
+            {discoverBusy
+              ? "Scanning Flatpak + desktop files…"
+              : discovered.length === 0
+              ? "Scan installed apps"
+              : `${discovered.length} apps detected — rescan`}
+          </ButtonItem>
+        </PanelSectionRow>
+        {discovered.length > 0 && (
+          <PanelSectionRow>
+            <TextField
+              label="Filter"
+              value={discoverFilter}
+              onChange={(e) => setDiscoverFilter((e.target as HTMLInputElement).value)}
+            />
+          </PanelSectionRow>
+        )}
+        {filteredDiscovered.slice(0, 80).map((app) => (
+          <div key={`${app.kind}:${app.id}`}>
+            <PanelSectionRow>
+              <div style={{ fontSize: 11, color: "#bbb", padding: "4px 8px" }}>
+                {app.name}{" "}
+                <span style={{ color: "#888", fontSize: 10 }}>
+                  ({app.kind})
+                </span>
+              </div>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem layout="below" disabled={busy} onClick={() => onRunDiscovered(app)}>
+                {busy ? "Starting…" : "Run now"}
+              </ButtonItem>
+            </PanelSectionRow>
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={() => onSaveDiscovered(app)}>
+                Save to Apps list
+              </ButtonItem>
+            </PanelSectionRow>
+          </div>
+        ))}
+        {filteredDiscovered.length > 80 && (
+          <PanelSectionRow>
+            <div style={{ fontSize: 10, color: "#888", padding: "0 8px" }}>
+              Showing first 80 of {filteredDiscovered.length} — narrow with the filter
+            </div>
+          </PanelSectionRow>
+        )}
       </PanelSection>
 
       <PanelSection title="Custom app">

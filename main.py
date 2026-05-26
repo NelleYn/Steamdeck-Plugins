@@ -44,6 +44,7 @@ from deckpip.cloud_sync import (
     sync_up as _rclone_sync_up,
 )
 from deckpip.diagnostics import collect as _diagnostics_collect
+from deckpip.discovery import discover_all as _discover_apps
 from deckpip.ludusavi import (
     backup as _ludusavi_backup,
 )
@@ -119,6 +120,11 @@ class Plugin:
 
     async def list_apps(self) -> list:
         return all_apps(self._get_settings())
+
+    async def discover_installed_apps(self) -> list:
+        """Scan Flatpak + XDG .desktop files for GUI apps the user has
+        installed, so the frontend's app picker doesn't need text input."""
+        return await _discover_apps()
 
     async def add_custom_app(self, app_id: str, label: str, command: str) -> dict:
         return add_custom_app(self._get_settings(), app_id, label, command)
