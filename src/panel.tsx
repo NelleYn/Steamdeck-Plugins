@@ -30,6 +30,7 @@ import {
   cloudSyncUp,
   importSettings,
   installDeps,
+  installEverything,
   installVendored,
   listApps,
   listBookmarks,
@@ -208,6 +209,22 @@ export function Content() {
       body: ok
         ? "noVNC + websockify vendored"
         : `Vendor install failed: ${JSON.stringify(res).slice(0, 160)}`,
+    });
+  };
+
+  const onInstallEverything = async () => {
+    setInstallingVendored(true);
+    const res = await installEverything();
+    setInstallingVendored(false);
+    setDeps(await checkDeps());
+    await refreshLudusavi();
+    await refreshRclone();
+    const ok = (res as { ok?: boolean }).ok;
+    toaster.toast({
+      title: "DeckPiP",
+      body: ok
+        ? "All vendored bundles installed (noVNC + websockify + Ludusavi + rclone)"
+        : `Some installs failed — open Show diagnostics for details`,
     });
   };
 
@@ -991,6 +1008,17 @@ export function Content() {
             {installingVendored
               ? "Vendoring noVNC + websockify…"
               : "Install vendored runtime"}
+          </ButtonItem>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={installingVendored}
+            onClick={onInstallEverything}
+          >
+            {installingVendored
+              ? "Installing everything…"
+              : "Install everything (vendored + Ludusavi + rclone)"}
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>

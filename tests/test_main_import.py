@@ -67,6 +67,7 @@ def test_plugin_class_has_required_methods() -> None:
         "ludusavi_backup", "ludusavi_restore", "ludusavi_find",
         "rclone_status", "rclone_install", "rclone_remotes",
         "cloud_sync_up", "cloud_sync_down",
+        "install_everything",
         "_main", "_unload", "_uninstall",
     ]:
         assert callable(getattr(plugin, name)), f"missing: {name}"

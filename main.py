@@ -281,6 +281,20 @@ class Plugin:
             "stderr": stderr.decode(errors="replace")[-2000:],
         }
 
+    async def install_everything(self) -> dict:
+        """Run the full one-tap setup: vendored noVNC+websockify, Ludusavi,
+        rclone. Each step is independent — partial success is reported."""
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        results = {
+            "vendored": await _vendor_install(rt, force=False),
+            "ludusavi": await _ludusavi_install(rt, force=False),
+            "rclone": await _rclone_install(rt, force=False),
+        }
+        results["ok"] = all(
+            isinstance(r, dict) and r.get("ok") for r in results.values()
+        )
+        return results
+
     async def start_pip(self, app_id: str, audio_only: bool = False) -> dict:
         async with self._get_lock():
             if self.session is not None:

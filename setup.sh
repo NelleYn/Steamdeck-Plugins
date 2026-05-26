@@ -54,7 +54,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo
 if [[ -n "$SCRIPT_DIR" \
       && -f "$SCRIPT_DIR/plugin.json" \
       && -f "$SCRIPT_DIR/main.py" \
-      && -d "$SCRIPT_DIR/src" ]]; then
+      && -d "$SCRIPT_DIR/deckpip" \
+      && (-d "$SCRIPT_DIR/src" || -d "$SCRIPT_DIR/dist") ]]; then
     SRC_DIR="$SCRIPT_DIR"
     say "using existing checkout at $SRC_DIR"
 else
@@ -73,10 +74,14 @@ fi
 cd "$SRC_DIR"
 
 # --- 3. build frontend ----------------------------------------------------
-say "building frontend (pnpm)"
-pnpm install
-pnpm run build
-[[ -f dist/index.js ]] || die "Build did not produce dist/index.js"
+if [[ -f dist/index.js && ! -d src ]]; then
+    say "dist/ already present, skipping build (looks like a pre-built drop)"
+else
+    say "building frontend (pnpm)"
+    pnpm install
+    pnpm run build
+    [[ -f dist/index.js ]] || die "Build did not produce dist/index.js"
+fi
 
 # --- 4. install into Decky plugins dir -----------------------------------
 say "installing into ${PLUGIN_DIR}"
@@ -89,8 +94,8 @@ sudo cp -r \
     "$PLUGIN_DIR/"
 sudo chown -R deck:deck "$PLUGIN_DIR"
 
-# --- 5. runtime dependencies ---------------------------------------------
-say "installing runtime deps (TigerVNC, websockify, noVNC, xterm, wmctrl)"
+# --- 5. runtime dependencies (pacman) ------------------------------------
+say "installing required pacman dep (tigervnc) + optional GameMirror packages"
 sudo bash "$PLUGIN_DIR/defaults/install.sh"
 
 # --- 6. restart Decky -----------------------------------------------------
@@ -99,16 +104,22 @@ sudo systemctl restart plugin_loader
 
 cat <<EOF
 
-\033[1;32m[deckpip]\033[0m done.
+\033[1;32m[deckpip]\033[0m install finished.
 
-Next steps:
-  1. Switch back to Gaming Mode (Steam menu -> Power -> Switch to Gaming Mode).
-  2. Press the '...' button to open Quick Access.
-  3. Open the Decky panel (plug icon) -> DeckPiP.
-  4. Optional: in the panel tap "Check dependencies" to confirm everything
-     installed correctly.
-  5. Try the "xterm (debug)" launcher first; it has no Flatpak dependency.
+Next steps in Gaming Mode (Quick Access -> Decky -> DeckPiP):
+  1. System -> Install vendored runtime   (noVNC + websockify, ~5 MB)
+  2. Save sync -> Install Ludusavi        (optional, for save backups)
+  3. Cloud sync -> Install rclone         (optional, for cloud sync of
+                                           those backups)
 
-If the plugin does not appear, check the Decky logs:
+If you want cloud sync, also run this ONCE in Desktop Mode to log in
+to your provider (Google Drive / Dropbox / etc.):
+
+  ~/homebrew/data/DeckPiP/vendored/rclone/rclone-*-linux-*/rclone config
+
+Then enter the remote name + path in the Save sync panel.
+
+If the plugin does not appear in Decky, check:
   sudo journalctl -u plugin_loader -e
 EOF
+

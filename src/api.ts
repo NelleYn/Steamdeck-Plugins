@@ -55,6 +55,7 @@ export const vendorStatus = callable<[], VendorStatus>("vendor_status");
 export const installVendored = callable<[force: boolean], Record<string, unknown>>(
   "install_vendored",
 );
+export const installEverything = callable<[], Record<string, unknown>>("install_everything");
 
 export const startNotificationMirror = callable<[], SimpleResult>("start_notification_mirror");
 export const stopNotificationMirror = callable<[], SimpleResult>("stop_notification_mirror");
