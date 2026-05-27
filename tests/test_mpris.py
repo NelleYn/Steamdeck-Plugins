@@ -72,3 +72,34 @@ def test_metadata_with_missing_keys() -> None:
     out = 'variant string "Playing"\nstring "xesam:title"\nvariant string "Song"'
     meta = parse_metadata(out)
     assert meta == {"status": "Playing", "title": "Song"}
+
+
+def test_metadata_keys_in_arbitrary_order() -> None:
+    """Real dbus output may serialize keys in any order; the stateful
+    walk should still attach each value to its own key."""
+    out = (
+        'variant array [\n'
+        '   dict entry(\n'
+        '      string "xesam:artist"\n'
+        '      variant array [\n'
+        '         string "Queen"\n'
+        '      ]\n'
+        '   )\n'
+        '   dict entry(\n'
+        '      string "xesam:title"\n'
+        '      variant string "Bohemian Rhapsody"\n'
+        '   )\n'
+        ']\n'
+    )
+    meta = parse_metadata(out)
+    assert meta == {"artist": "Queen", "title": "Bohemian Rhapsody"}
+
+
+def test_metadata_ignores_unknown_keys() -> None:
+    out = (
+        'string "xesam:url"\n'
+        'variant string "https://example.com"\n'
+        'string "xesam:title"\n'
+        'variant string "Real Title"\n'
+    )
+    assert parse_metadata(out) == {"title": "Real Title"}

@@ -96,13 +96,15 @@ function installBatteryWatcher(): () => void {
 function installPauseScheduler(): () => void {
   let pauseTimer: ReturnType<typeof setTimeout> | null = null;
   let isPaused = false;
+  let cancelled = false;
   const clear = () => {
     if (pauseTimer) {
       clearTimeout(pauseTimer);
       pauseTimer = null;
     }
   };
-  return store.subscribe(() => {
+  const unsubscribe = store.subscribe(() => {
+    if (cancelled) return;
     const s = store.get();
     if (!s.url) {
       clear();
@@ -118,13 +120,17 @@ function installPauseScheduler(): () => void {
     } else if (!pauseTimer && !isPaused) {
       pauseTimer = setTimeout(() => {
         pauseTimer = null;
-        if (!store.get().visible) {
-          isPaused = true;
-          pauseSession().catch(() => {});
-        }
+        if (cancelled || store.get().visible) return;
+        isPaused = true;
+        pauseSession().catch(() => {});
       }, PAUSE_DELAY_MS);
     }
   });
+  return () => {
+    cancelled = true;
+    clear();
+    unsubscribe();
+  };
 }
 
 /** Look up the profile for an appid, falling back to a "default" profile. */

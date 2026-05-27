@@ -45,27 +45,50 @@ def parse_listnames(output: str) -> list[str]:
 
 
 def parse_metadata(output: str) -> dict[str, str]:
-    """Parse ``Get``/``GetAll`` Property output. Returns a flat dict of
-    string values we actually care about (title, artist, album, status)."""
+    """Parse ``Get``/``GetAll`` Property output. Returns a flat dict with
+    title/artist/album/status when present.
+
+    dbus-send output is line-oriented. We walk the lines once, tracking
+    the most recent ``string "xesam:foo"`` key, and when we see the next
+    ``string|variant string "value"`` (skipping the variant-type lines
+    that come between) we attach it. This avoids the regex pitfall of
+    matching across unrelated entries when keys appear in a different
+    order between calls.
+    """
     result: dict[str, str] = {}
-    # Status comes back as a single ``variant string "Playing"`` line.
-    status_match = re.search(r'variant\s+string\s+"(Playing|Paused|Stopped)"', output)
-    if status_match:
-        result["status"] = status_match.group(1)
-    # Metadata keys live as ``string "xesam:title"`` followed by their
-    # corresponding ``variant string "value"`` (single-string keys) or
-    # ``variant array [ string "value" ... ]`` (artist array). We only
-    # care about the first string value for each key.
-    keys = ("xesam:title", "xesam:album", "xesam:artist")
-    for key in keys:
-        m = re.search(
-            rf'string\s+"{re.escape(key)}".*?string\s+"([^"]*)"',
-            output,
-            re.DOTALL,
-        )
+    pending_key: str | None = None
+    KEY_NAMES = {"xesam:title": "title", "xesam:album": "album", "xesam:artist": "artist"}
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+
+        # Top-level PlaybackStatus: ``variant string "Playing"``.
+        m = re.match(r'^variant\s+string\s+"(Playing|Paused|Stopped)"\s*$', line)
         if m:
-            short = key.split(":", 1)[1]
-            result[short] = m.group(1)
+            result["status"] = m.group(1)
+            continue
+
+        # New key entry: ``string "xesam:title"``.
+        m = re.match(r'^string\s+"([^"]+)"\s*$', line)
+        if m:
+            candidate = m.group(1)
+            if candidate in KEY_NAMES:
+                pending_key = candidate
+            elif pending_key is not None:
+                # This is the value belonging to the previous key
+                # (e.g. ``string "Queen"`` inside artist array).
+                result[KEY_NAMES[pending_key]] = candidate
+                pending_key = None
+            continue
+
+        # Single-string value:  ``variant string "Bohemian Rhapsody"``.
+        m = re.match(r'^variant\s+string\s+"([^"]*)"\s*$', line)
+        if m and pending_key is not None:
+            result[KEY_NAMES[pending_key]] = m.group(1)
+            pending_key = None
+            continue
+
     return result
 
 

@@ -61,7 +61,8 @@ async def _download_tarball(url: str, dest: Path) -> None:
 async def _extract_tarball(tarball: Path, into: Path) -> None:
     def _extract() -> None:
         with tarfile.open(tarball, "r:gz") as tf:
-            tf.extractall(into)  # noqa: S202 -- pinned upstream URL
+            # filter="data" is the post-CVE-2007-4559 safe extractor.
+            tf.extractall(into, filter="data")
     await asyncio.to_thread(_extract)
 
 
@@ -85,9 +86,9 @@ async def install_novnc(runtime_dir: Path, force: bool = False) -> dict:
 
 
 async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
-    """``pip install --target=…`` into a vendored python env so we don't
-    pollute the system. Requires `python3` and `pip` on the host (both
-    in the SteamOS base image)."""
+    """pip install websockify into a vendored prefix. Wraps the resulting
+    bin/websockify with a launcher that sets PYTHONPATH so imports resolve
+    from the vendored site-packages."""
     target = vendored_root(runtime_dir) / "python"
     bin_path = target / "bin" / "websockify"
     if bin_path.exists() and not force:
@@ -95,7 +96,9 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
     target.mkdir(parents=True, exist_ok=True)
 
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "pip", "install", "--prefix", str(target),
+        sys.executable, "-m", "pip", "install",
+        "--prefix", str(target),
+        "--break-system-packages",  # PEP 668 SteamOS Python
         "--upgrade", "websockify",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -107,12 +110,26 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
         return {"ok": False, "error": "pip_install_timeout"}
     if proc.returncode != 0 or not bin_path.exists():
         return {
-            "ok": False,
-            "error": "pip_failed",
+            "ok": False, "error": "pip_failed",
             "rc": proc.returncode,
             "stderr": stderr.decode(errors="replace")[-1000:],
             "stdout": stdout.decode(errors="replace")[-500:],
         }
+
+    # bin/websockify imports the websockify package from
+    # lib/python3.X/site-packages, which isn't on PYTHONPATH by default.
+    # Locate the site-packages dir and bake a wrapper around the binary.
+    site_packages: list[Path] = list(target.glob("lib/python*/site-packages"))
+    if site_packages:
+        wrapper = bin_path.with_suffix(".real")
+        if not wrapper.exists():
+            bin_path.rename(wrapper)
+            bin_path.write_text(
+                "#!/usr/bin/env bash\n"
+                f'PYTHONPATH="{site_packages[0]}${{PYTHONPATH:+:$PYTHONPATH}}" '
+                f'exec "{wrapper}" "$@"\n'
+            )
+            bin_path.chmod(0o755)
     return {"ok": True, "path": str(bin_path)}
 
 

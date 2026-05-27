@@ -101,10 +101,18 @@ from deckpip.vendoring import status as _vendor_status
 
 
 class Plugin:
-    session: PipSession | None = None
-    _lock: asyncio.Lock | None = None
-    _settings: SettingsStore | None = None
-    _notif_mirror: NotificationMirror | None = None
+    # Per-instance state is initialised lazily so the class itself can be
+    # imported (e.g. by the test smoke check) without a running event loop.
+    session: PipSession | None
+    _lock: asyncio.Lock | None
+    _settings: SettingsStore | None
+    _notif_mirror: NotificationMirror | None
+
+    def __init__(self) -> None:
+        self.session = None
+        self._lock = None
+        self._settings = None
+        self._notif_mirror = None
 
     def _get_lock(self) -> asyncio.Lock:
         if self._lock is None:

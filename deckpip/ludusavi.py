@@ -97,7 +97,7 @@ async def install(runtime_dir: Path, force: bool = False) -> dict:
     try:
         if asset.endswith(".tar.gz") or asset.endswith(".tgz"):
             with tarfile.open(archive, "r:gz") as tf:
-                tf.extractall(root)  # noqa: S202 pinned upstream URL
+                tf.extractall(root, filter="data")
         elif asset.endswith(".zip"):
             with zipfile.ZipFile(archive) as zf:
                 zf.extractall(root)
@@ -115,14 +115,24 @@ async def install(runtime_dir: Path, force: bool = False) -> dict:
     return {"ok": True, "path": str(bin_p)}
 
 
-async def _run(runtime_dir: Path, *args: str, timeout: float = 120.0) -> dict:
-    """Invoke the vendored ludusavi binary with --api so we get JSON."""
+async def _run(
+    runtime_dir: Path,
+    *args: str,
+    timeout: float = 120.0,
+    try_update: bool = False,
+) -> dict:
+    """Invoke the vendored ludusavi binary with --api. ``try_update`` adds
+    --try-update, which pulls a fresh PCGamingWiki manifest — only worth
+    paying that cost for `find`, not for every auto-backup."""
     bin_path = resolve_binary(runtime_dir)
     if bin_path is None:
         return {"ok": False, "error": "ludusavi_not_installed"}
     backup_dir = default_backup_dir(runtime_dir)
     backup_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [bin_path, "--api", "--try-update", *args]
+    cmd = [bin_path, "--api"]
+    if try_update:
+        cmd.append("--try-update")
+    cmd.extend(args)
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -161,11 +171,10 @@ async def restore(runtime_dir: Path, game: str | None = None) -> dict:
 
 
 async def find_games(runtime_dir: Path, query: str | None = None) -> dict:
-    """List the games Ludusavi can detect on disk."""
     args = ["find"]
     if query:
         args.append(query)
-    return await _run(runtime_dir, *args, timeout=60.0)
+    return await _run(runtime_dir, *args, timeout=60.0, try_update=True)
 
 
 def parse_backup_summary(payload: Any) -> dict:
