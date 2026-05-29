@@ -53,14 +53,20 @@ if [[ -n "$SCRIPT_DIR" \
 else
     SRC_DIR="$SRC_DIR_DEFAULT"
     say "fetching sources into $SRC_DIR"
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        REPO_URL_AUTH="https://oauth2:${GITHUB_TOKEN}@github.com/NelleYn/Steamdeck-Plugins.git"
-    else
-        REPO_URL_AUTH="$REPO_URL"
-    fi
     rm -rf "$SRC_DIR"
-    git clone --depth 1 -b "$BRANCH" "$REPO_URL_AUTH" "$SRC_DIR" \
-        || die "git clone failed"
+    # Keep any GITHUB_TOKEN out of the clone URL / process args (it would be
+    # visible in `ps`). Feed it through a git credential helper that reads the
+    # value from the environment at run time instead — the -c string holds the
+    # literal "$GITHUB_TOKEN" text, not the secret.
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        export GITHUB_TOKEN
+        git -c credential.helper='!f() { echo "username=oauth2"; echo "password=${GITHUB_TOKEN}"; }; f' \
+            clone --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC_DIR" \
+            || die "git clone failed"
+    else
+        git clone --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC_DIR" \
+            || die "git clone failed"
+    fi
 fi
 
 cd "$SRC_DIR"

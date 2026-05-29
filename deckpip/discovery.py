@@ -160,7 +160,10 @@ async def discover_all(home: Path | None = None) -> list[dict]:
     if home is None:
         home = Path.home()
     flatpaks = await discover_flatpaks()
-    desktops = discover_desktop_files(home)
+    # Reading/parsing every .desktop file across several dirs is blocking I/O;
+    # keep it off the event loop so other backend RPCs don't stall while the
+    # app picker scans.
+    desktops = await asyncio.to_thread(discover_desktop_files, home)
     by_id: dict[str, dict] = {}
     for app in flatpaks:
         by_id[app["id"]] = app

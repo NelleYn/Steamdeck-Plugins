@@ -45,6 +45,30 @@ def test_main_module_imports_cleanly() -> None:
     assert hasattr(decky_main, "Plugin")
 
 
+def test_merge_settings_preserves_sibling_collections() -> None:
+    _install_decky_stub()
+    import main as decky_main
+
+    current = {
+        "game_profiles": {"100": {"auto_launch": True}, "200": {"opacity": 50}},
+        "custom_apps": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+        "hotkey": "F10",
+    }
+    payload = {
+        "game_profiles": {"200": {"opacity": 80}},  # partial profile import
+        "custom_apps": [{"id": "b", "label": "B2"}],  # override one app
+    }
+    merged = decky_main.merge_settings(current, payload)
+
+    # Existing profile 100 must survive a partial game_profiles import.
+    assert merged["game_profiles"]["100"] == {"auto_launch": True}
+    assert merged["game_profiles"]["200"] == {"opacity": 80}
+    # custom_apps merge by id: 'a' kept, 'b' overridden, no duplicates.
+    assert merged["custom_apps"] == [{"id": "a", "label": "A"}, {"id": "b", "label": "B2"}]
+    # Untouched scalars are preserved.
+    assert merged["hotkey"] == "F10"
+
+
 def test_plugin_class_has_required_methods() -> None:
     _install_decky_stub()
     import main as decky_main

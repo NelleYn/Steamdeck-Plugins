@@ -29,6 +29,10 @@ _BASE_URL = (
     f"https://github.com/rclone/rclone/releases/download/v{RCLONE_VERSION}"
 )
 _REMOTE_RE = re.compile(r"^([A-Za-z0-9_\-]+):$")
+# A bare remote *name* (no trailing colon) as supplied by the frontend. Used to
+# reject rclone connection-string injection like ``:http,url=…`` on the sync
+# path — those would make rclone talk to an arbitrary backend/host.
+_REMOTE_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
 
 def _asset_name() -> str:
@@ -63,6 +67,24 @@ def resolve_binary(runtime_dir: Path) -> str | None:
     return shutil.which("rclone")
 
 
+def _safe_extract_zip(zf: zipfile.ZipFile, dest: Path) -> None:
+    """Extract ``zf`` into ``dest`` rejecting path-traversal and symlink
+    members (zipfile has no ``filter="data"`` equivalent, unlike tarfile).
+
+    Mirrors the CVE-2007-4559 hardening the tarfile call sites already have so
+    a tampered rclone archive can't escape the vendored directory.
+    """
+    dest = dest.resolve()
+    for info in zf.infolist():
+        # Symlinks are encoded in the high bits of external_attr (S_IFLNK).
+        if (info.external_attr >> 16) & 0o170000 == 0o120000:
+            raise RuntimeError(f"refusing symlink in archive: {info.filename}")
+        target = (dest / info.filename).resolve()
+        if target != dest and dest not in target.parents:
+            raise RuntimeError(f"unsafe path in archive: {info.filename}")
+    zf.extractall(dest)
+
+
 def parse_remotes(output: str) -> list[str]:
     """``rclone listremotes`` prints one remote per line as ``name:``.
 
@@ -95,7 +117,7 @@ async def install(runtime_dir: Path, force: bool = False) -> dict:
     try:
         await asyncio.to_thread(_fetch)
         with zipfile.ZipFile(archive) as zf:
-            zf.extractall(root)
+            _safe_extract_zip(zf, root)
     except Exception as exc:
         return {"ok": False, "error": f"download_or_extract:{exc}"}
     finally:
@@ -141,20 +163,32 @@ async def list_remotes(runtime_dir: Path) -> dict:
 
 
 async def sync_up(runtime_dir: Path, local: Path, remote: str, path: str) -> dict:
-    """Push local Ludusavi backups to ``<remote>:<path>``."""
+    """Push local Ludusavi backups to ``<remote>:<path>``.
+
+    Uses ``rclone copy`` (not ``sync``): we never want a wrong/empty
+    destination to *delete* save backups, only ever add/update them.
+    """
+    if not _REMOTE_NAME_RE.match(remote):
+        return {"ok": False, "error": "invalid_remote"}
     return await _run(
         runtime_dir,
-        "sync", "--progress=false",
+        "copy", "--progress=false",
         str(local), f"{remote}:{path}",
         timeout=1800.0,
     )
 
 
 async def sync_down(runtime_dir: Path, local: Path, remote: str, path: str) -> dict:
-    """Pull from ``<remote>:<path>`` into the local backup dir."""
+    """Pull from ``<remote>:<path>`` into the local backup dir.
+
+    Uses ``rclone copy`` so a mistyped remote path can never wipe the local
+    save-backup directory to match an empty/wrong source.
+    """
+    if not _REMOTE_NAME_RE.match(remote):
+        return {"ok": False, "error": "invalid_remote"}
     return await _run(
         runtime_dir,
-        "sync", "--progress=false",
+        "copy", "--progress=false",
         f"{remote}:{path}", str(local),
         timeout=1800.0,
     )

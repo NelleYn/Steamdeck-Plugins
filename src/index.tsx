@@ -32,6 +32,17 @@ const PAUSE_DELAY_MS = 5000;
 
 function installHotkey(): () => void {
   let pttHeld = false;
+  // Remember the exact key that started PTT so we always release on its keyup,
+  // even if the user rebinds the hotkey mid-hold.
+  let pttKey: string | null = null;
+  // Safety re-mute: if a keyup is ever missed (focus loss, key rebind), the mic
+  // must not stay open. Releasing is idempotent (mute), so over-calling is safe.
+  const releasePtt = () => {
+    if (!pttHeld) return;
+    pttHeld = false;
+    pttKey = null;
+    pttCallable("", "release").catch(() => {});
+  };
   const onDown = (e: KeyboardEvent) => {
     const { hotkeyToggle, hotkeyPtt } = store.get();
     if (e.key === hotkeyToggle) {
@@ -41,22 +52,33 @@ function installHotkey(): () => void {
       e.preventDefault();
       if (!pttHeld) {
         pttHeld = true;
+        pttKey = e.key;
         pttCallable("", "press").catch(() => {});
       }
     }
   };
   const onUp = (e: KeyboardEvent) => {
-    if (e.key === store.get().hotkeyPtt && pttHeld) {
+    if (pttHeld && e.key === pttKey) {
       e.preventDefault();
-      pttHeld = false;
-      pttCallable("", "release").catch(() => {});
+      releasePtt();
     }
+  };
+  // A blur/hidden window stops delivering keyup, which would otherwise leave the
+  // mic unmuted indefinitely — force a release on either.
+  const onBlur = () => releasePtt();
+  const onVisibility = () => {
+    if (document.hidden) releasePtt();
   };
   window.addEventListener("keydown", onDown);
   window.addEventListener("keyup", onUp);
+  window.addEventListener("blur", onBlur);
+  document.addEventListener("visibilitychange", onVisibility);
   return () => {
+    releasePtt();
     window.removeEventListener("keydown", onDown);
     window.removeEventListener("keyup", onUp);
+    window.removeEventListener("blur", onBlur);
+    document.removeEventListener("visibilitychange", onVisibility);
   };
 }
 
@@ -133,13 +155,6 @@ function installPauseScheduler(): () => void {
   };
 }
 
-/** Look up the profile for an appid, falling back to a "default" profile. */
-async function resolveProfile(appid: number) {
-  const direct = await getProfile(String(appid));
-  if (direct) return direct;
-  return await getProfile("default");
-}
-
 function installAutoLaunch(): () => void {
   return onAppLifecycle(async ({ appid, running }) => {
     const w = window as unknown as { __DECKPIP_CURRENT_APPID__?: number };
@@ -151,7 +166,11 @@ function installAutoLaunch(): () => void {
 
     if (!running) return;
     try {
-      const profile = await resolveProfile(appid);
+      // Auto-launch only fires for games with their *own* profile. We
+      // deliberately do not fall back to a shared "default" profile here:
+      // doing so would turn one default's auto_launch flag into a global
+      // "PiP on every game" switch the user never asked for.
+      const profile = await getProfile(String(appid));
       if (!profile?.auto_launch) return;
       const apps = await listApps();
       const target = apps.find((a) => a.id === profile.app_id);
