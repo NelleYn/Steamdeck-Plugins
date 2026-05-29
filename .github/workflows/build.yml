@@ -1,0 +1,91 @@
+name: Build DeckPiP
+
+on:
+  push:
+    branches:
+      - claude/steamdeck-gaming-plugin-9YVmO
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install ruff + pytest
+        run: pip install ruff pytest pytest-asyncio
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: python -m pytest tests/ -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Pack DeckPiP.zip
+        if: github.event_name != 'pull_request'
+        run: |
+          set -e
+          rm -rf build-pack
+          mkdir -p build-pack/DeckPiP
+          find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+          cp -r plugin.json main.py deckpip defaults dist \
+              package.json README.md LICENSE setup.sh \
+              build-pack/DeckPiP/
+          cd build-pack
+          zip -qr DeckPiP.zip DeckPiP
+          ls -la DeckPiP.zip
+
+      - name: Upload as workflow artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeckPiP
+          path: build-pack/DeckPiP.zip
+
+      - name: Publish / update "dev" prerelease
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: Latest dev build
+          prerelease: true
+          body: |
+            Automated build from the feature branch.
+            Direct zip URL (works anonymously now that the repo is public):
+            https://github.com/${{ github.repository }}/releases/download/dev/DeckPiP.zip
+          files: build-pack/DeckPiP.zip

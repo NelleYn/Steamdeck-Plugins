@@ -1,4 +1,4 @@
-# DeckPiP — PoC Architecture
+# DeckPiP — Architecture
 
 ```
 +--------------------- Gaming Mode (gamescope) ---------------------+
@@ -11,83 +11,116 @@
 |   |                                                            |   |
 |   |   Quick Access  ->  DeckPiP panel  ->  "Start PiP"        |   |
 |   |                                                            |   |
-|   |   CEF tab (custom route):                                  |   |
+|   |   Custom route /deckpip/view:                              |   |
 |   |   +---------------------------------------------------+    |   |
-|   |   |  <iframe src="http://127.0.0.1:6901/?token=..."/> |    |   |
+|   |   |  <iframe src="http://127.0.0.1:6901/vnc.html...">|    |   |
 |   |   |                  (noVNC client)                   |    |   |
 |   |   +---------------------------------------------------+    |   |
 |   +------------------------------------------------------------+   |
 +-------------------------------------------------------------------+
                                 |
-                                |  HTTP/WebSocket on loopback
+                                |  HTTP+WebSocket on loopback
                                 v
 +-------------------- Decky backend (Python, root) -----------------+
 |                                                                   |
-|   Xvfb :42  <----+                                                |
-|                  |  X11                                           |
-|   target_app ----+                                                |
+|   Xvnc :42  -RfbPort 5942-                                        |
+|     (TigerVNC, X server + VNC built-in)                           |
+|        |                                                          |
+|   target_app (DISPLAY=:42)                                        |
 |                                                                   |
-|   KasmVNC ---------> binds 127.0.0.1:6901, token-auth             |
+|   websockify --web /usr/share/novnc 127.0.0.1:6901 <-> :5942      |
+|                                                                   |
+|   (optional) gst-launch-1.0 pipewiresrc ! ximagesink display=:42  |
+|        -> "GameMirror" window on Xvnc, sees real game frames      |
+|        -> Discord on the same Xvnc can Go Live it                 |
 |                                                                   |
 +-------------------------------------------------------------------+
 ```
 
-## Components
+## Process layout
 
-### Backend (`main.py`)
+One `PipSession` owns the process group for a running session:
 
-- `start_pip(app_id: str) -> {ok, url, token}`
-  1. Allocate a free X display number (e.g. `:42`).
-  2. Spawn `Xvfb :42 -screen 0 1280x800x24` as the `deck` user.
-  3. Spawn the target app with `DISPLAY=:42` and a per-app env
-     (e.g. `--no-sandbox` for Electron apps).
-  4. Spawn `kasmvncserver` (or `x11vnc + websockify + noVNC`) bound to
-     `127.0.0.1:6901` with a random token.
-  5. Return the noVNC URL + token to the frontend.
-- `stop_pip() -> {ok}` — kill the process group in reverse order;
-  remove the X socket.
-- `list_apps() -> [{id, label, command, icon}]` — read from
-  `decky.DECKY_PLUGIN_SETTINGS_DIR/apps.json` (or built-in defaults).
-- `_unload` and `_uninstall` must call `stop_pip()`.
+| Process | Purpose | Lifetime |
+|---|---|---|
+| `Xvnc :42` | TigerVNC X server with built-in VNC, listens on `127.0.0.1:5942` | start → stop |
+| target app | `flatpak run …` / `xterm` / custom command, `DISPLAY=:42` | start → stop |
+| `websockify` | bridges `127.0.0.1:6901` ↔ `127.0.0.1:5942`, serves `/usr/share/novnc/vnc.html` | non-audio-only sessions only |
+| `gst-launch-1.0` | `pipewiresrc → videoconvert → ximagesink display=:42`, only when GameMirror is on | toggle in UI |
 
-### Frontend (`src/index.tsx`)
+All four are launched with `preexec_fn=os.setsid` so we can `killpg` the
+whole group on stop. Stop is two-phase: `SIGTERM`, wait 3 s, then
+`SIGKILL` for anything that didn't exit.
 
-- Decky panel in Quick Access: list of apps, **Start / Stop** toggle.
-- On **Start**, call `start_pip`, then register a custom route
-  (`routerHook.addRoute("/deckpip/view", ...)`) that renders an
-  `<iframe>` of the returned noVNC URL.
-- Navigate to that route via `Navigation.Navigate("/deckpip/view")` —
-  Steam UI compositor will show it on top of the game.
-- On **Stop**, remove the route and call `stop_pip`.
+## Callable surface (frontend ↔ backend)
 
-### Lifecycle invariants
+| Callable | Purpose |
+|---|---|
+| `list_apps` | Built-ins + persisted custom apps |
+| `add_custom_app(id, label, command)` | shlex-parsed command, stored in settings.json |
+| `remove_custom_app(id)` | |
+| `settings_get(key, default)` | UI state persistence (geom, opacity, click-through) |
+| `settings_set(key, value)` | |
+| `check_dependencies()` | which Xvnc/websockify/noVNC/xterm/wmctrl are present |
+| `install_dependencies()` | runs `defaults/install.sh` (pacman, with steamos-readonly toggle) |
+| `start_pip(app_id, audio_only)` | spawn Xvnc + guest [+ websockify] |
+| `stop_pip()` | reverse-order termination, clean up vncpasswd |
+| `start_game_mirror()` | find gamescope PipeWire node, spawn gst pipeline, rename + fullscreen window |
+| `stop_game_mirror()` | kill the gst pipeline only |
+
+`start_pip`/`stop_pip`/`start_game_mirror`/`stop_game_mirror` are
+serialized by a single `asyncio.Lock` to prevent the start-twice race
+and ensure stop sees a consistent session state.
+
+## Frontend layout
+
+- Quick Access panel (`Content`): app list, install/check deps,
+  Web-PiP URL field, Custom-app form, persisted toggles.
+- Custom Steam UI route `/deckpip/view` rendering `<PipView>`:
+  absolutely-positioned container holding the iframe, with drag-bar
+  header, resize handle (bottom-right), opacity, click-through.
+- State held in a module-level singleton with `useSyncExternalStore`;
+  persisted slice (`geom`, `opacity`, `clickThrough`) is sent through
+  `settings_set` on every change.
+- `F10` toggles visibility (DOM keydown listener installed at plugin
+  load).
+
+## Lifecycle invariants
 
 | Event | Action |
 |---|---|
-| Plugin load | nothing — wait for user |
-| User Start | spawn Xvfb → app → KasmVNC; open route |
-| User Stop | close route; kill processes |
+| Plugin load (`_main`) | initialize `asyncio.Lock` |
+| User Start | acquire lock → spawn → release; open route, set state.url |
+| User Stop | acquire lock → SIGTERM/SIGKILL all four; clear state |
 | Plugin unload (`_unload`) | force stop if running |
-| Plugin uninstall (`_uninstall`) | force stop + clean settings dir |
-| Gaming Mode logout | systemd kills `deck` session → our children die with it |
+| Plugin uninstall (`_uninstall`) | force stop + (future) clean settings dir |
+| Gaming Mode logout | systemd kills the `deck` session → our children die with it |
 
-### Security
+## Security
 
 - KasmVNC bound to `127.0.0.1` only.
-- Random 32-byte hex token per session, regenerated on every Start.
-- App command list is whitelist-only (no arbitrary `exec` from the UI).
+- 8-character TigerVNC password (TigerVNC limit) regenerated on every
+  Start — loopback-only, so length isn't a security boundary.
+- `_root` flag: backend runs as root. We never accept shell strings
+  from the frontend; custom-app commands are split with `shlex.split`
+  and exec'd as argv, not via a shell.
+- Pacman install never runs without explicit user click on **Install
+  dependencies**.
 
-### Dependencies (not in base SteamOS image)
+## Runtime dependencies (not in base SteamOS)
 
-PoC will assume the user installs these manually via `pacman` after
-unlocking the root partition, OR via a Flatpak runtime. To be decided
-once the wiring works. Candidates:
+Provided by `defaults/install.sh`:
 
-- `xorg-server-xvfb`
-- `kasmvncserver` (preferred — bundles websockify and noVNC)
-- target apps: `discord` (Flatpak `com.discordapp.Discord`),
-  `telegram-desktop` (Flatpak `org.telegram.desktop`), etc.
+- `tigervnc` (Xvnc, vncpasswd)
+- `python-websockify`
+- `novnc` (vnc.html + assets under `/usr/share/novnc`)
+- `xterm`
+- `wmctrl`
 
-A bootstrap script that downloads a portable KasmVNC tarball into
-`decky.DECKY_PLUGIN_RUNTIME_DIR` is the leading idea — keeps the
-plugin self-contained and survives SteamOS updates.
+For the GameMirror feature, additionally:
+
+- `gst-plugins-good` (ximagesink)
+- `gst-plugin-pipewire` (pipewiresrc)
+- `xdotool`
+
+Guests are user-installed Flatpak / native packages; we just exec them.
