@@ -78,7 +78,7 @@ in **System** to fetch noVNC + websockify + Ludusavi + rclone.
 ### B. One-shot installer (Desktop Mode)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/main/setup.sh | bash
 ```
 
 Installs build tools, clones, builds, copies, runs the pacman deps
@@ -97,7 +97,7 @@ bash setup.sh
 
 ```sh
 sudo pacman -Sy nodejs pnpm git
-git clone -b claude/steamdeck-gaming-plugin-9YVmO \
+git clone -b main \
     https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
 cd DeckPiP
 pnpm install && pnpm run build

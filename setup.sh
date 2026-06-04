@@ -7,7 +7,7 @@
 #    Auto-detected via plugin.json + main.py + deckpip/ in the same dir.
 #
 # B. Fresh anonymous clone (repo is public):
-#      curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+#      curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/main/setup.sh | bash
 #
 # Optional: if GITHUB_TOKEN is exported it'll be forwarded to git clone for
 # higher rate limits, but anonymous clone now works fine.
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/NelleYn/Steamdeck-Plugins.git"
-BRANCH="claude/steamdeck-gaming-plugin-9YVmO"
+BRANCH="${BRANCH:-main}"
 PLUGIN_DIR="/home/deck/homebrew/plugins/DeckPiP"
 SRC_DIR_DEFAULT="${HOME}/.cache/deckpip-build"
 
