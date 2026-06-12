@@ -1,6 +1,6 @@
 {
   "name": "deckpip",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "description": "Picture-in-Picture overlay for Steam Deck Gaming Mode.",
   "type": "module",
   "scripts": {

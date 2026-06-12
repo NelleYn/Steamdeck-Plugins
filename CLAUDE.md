@@ -42,6 +42,22 @@ pnpm test                             # frontend unit tests
 ruff check .                          # lint
 ```
 
+## Versioning
+
+Version format: `X.YY.ZZZ` — three independent counters, each keeping its own running total.
+
+- `X` (single digit, 0–9) — major / breaking changes.
+- `YY` (two digits, 00–99) — medium changes / new features.
+- `ZZZ` (three digits, 000–999) — small changes / fixes.
+
+**Each counter is independent — bumping a higher segment does NOT reset the lower ones.**
+Example: after `1.03.042`, a new feature makes it `1.04.042`; a subsequent fix makes it `1.04.043`.
+
+Because JSON version fields reject leading zeros, store the value as plain dotted integers (`X.Y.Z`) and rely on the conceptual widths above to interpret the segments.
+Both `package.json` and `plugin.json` (when it gains a `version` field) must stay in sync.
+
+Bump on every meaningful commit pushed to `main`.
+
 ## Key invariants
 
 - All subprocess commands run with `preexec_fn=os.setsid` and are terminated via `os.killpg` — never leave orphaned processes.
