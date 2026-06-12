@@ -107,20 +107,51 @@ and ensure stop sees a consistent session state.
 - Pacman install never runs without explicit user click on **Install
   dependencies**.
 
+## Backend module map
+
+| Module | Purpose |
+|---|---|
+| `main.py` | `Plugin` class — Decky entry point, composes all modules |
+| `deckpip/session.py` | `PipSession`, `terminate`, port-wait helper |
+| `deckpip/apps.py` | Built-in + custom app registry; shlex validation |
+| `deckpip/audio.py` | Per-guest volume via `pactl sink-input` |
+| `deckpip/battery.py` | `/sys/class/power_supply` reader |
+| `deckpip/bookmarks.py` | Web-PiP URL bookmarks (http/https only) |
+| `deckpip/cloud_sync.py` | rclone vendoring + sync up/down |
+| `deckpip/diagnostics.py` | Binary version snapshot for bug reports |
+| `deckpip/discovery.py` | Flatpak list + `.desktop` scanner |
+| `deckpip/ludusavi.py` | Save backup/restore via vendored Ludusavi |
+| `deckpip/mirror.py` | GameMirror: `pipewiresrc → ximagesink` pipeline |
+| `deckpip/mpris.py` | MPRIS transport via `dbus-send` |
+| `deckpip/notifications.py` | `dbus-monitor` → Decky toaster bridge |
+| `deckpip/profiles.py` | Per-game overlay profiles keyed by Steam appid |
+| `deckpip/ptt.py` | Push-to-talk via `pactl set-source-mute` |
+| `deckpip/settings.py` | Atomic JSON store (tmp + `os.replace`) |
+| `deckpip/trackpad.py` | Trackpad-as-mouse percentage → `xdotool` pixels |
+| `deckpip/updater.py` | GitHub release poll + `setup.sh` runner |
+| `deckpip/vendoring.py` | noVNC tarball + websockify pip install |
+
 ## Runtime dependencies (not in base SteamOS)
 
-Provided by `defaults/install.sh`:
+Provided by `defaults/install.sh` (pacman) or automatically vendored
+at first use:
 
-- `tigervnc` (Xvnc, vncpasswd)
-- `python-websockify`
-- `novnc` (vnc.html + assets under `/usr/share/novnc`)
-- `xterm`
+### Vendored (no pacman needed, auto-downloaded by plugin)
+
+- `noVNC` v1.5.0 — unpacked into `DECKY_PLUGIN_RUNTIME_DIR/vendored/`
+- `websockify` — pip-installed into the vendored Python prefix
+- `ludusavi` v0.27.0 — static binary for save backup/restore
+- `rclone` v1.69.1 — static binary for cloud sync
+
+### Pacman (required, not vendored yet)
+
+- `tigervnc` (provides `Xvnc` and `vncpasswd`)
+
+### Pacman (optional, GameMirror only)
+
+- `gst-plugins-good` (`ximagesink`)
+- `gst-plugin-pipewire` (`pipewiresrc`)
+- `xdotool`
 - `wmctrl`
 
-For the GameMirror feature, additionally:
-
-- `gst-plugins-good` (ximagesink)
-- `gst-plugin-pipewire` (pipewiresrc)
-- `xdotool`
-
-Guests are user-installed Flatpak / native packages; we just exec them.
+Guests are user-installed Flatpak / native packages; the plugin just execs them.

@@ -3,9 +3,9 @@
 Picture-in-Picture of arbitrary Linux GUI applications (Discord,
 Telegram, IDEs, …) over a running game in **Steam Deck Gaming Mode**.
 
-> Status: research / PoC scaffolding. Not yet runnable on a real Deck —
-> needs `kasmvncserver` and `Xvfb` installed, and the audio/input
-> wiring is intentionally minimal in this skeleton.
+> Status: functional PoC. Runs on a real Deck with TigerVNC (`Xvnc`),
+> websockify, and noVNC installed. Most features work; known gaps are
+> listed below.
 
 ## How it works
 
@@ -46,8 +46,31 @@ plugin.json          Decky manifest
 package.json         Frontend deps + rollup build
 rollup.config.js
 tsconfig.json
-main.py              Python backend (Xvfb + app + KasmVNC lifecycle)
+main.py              Python backend — Plugin class (Decky entry point)
+deckpip/             Python modules (testable without Decky runtime)
+  apps.py            Built-in + custom app registry
+  audio.py           Per-guest PulseAudio volume control
+  battery.py         /sys/class/power_supply reader
+  bookmarks.py       Web-PiP URL bookmarks
+  cloud_sync.py      rclone-backed cloud sync for Ludusavi backups
+  diagnostics.py     Self-test snapshot for bug reports
+  discovery.py       Flatpak + .desktop app scanner
+  ludusavi.py        Save-file backup/restore via vendored Ludusavi
+  mirror.py          GameMirror: gst pipeline into Xvnc
+  mpris.py           MPRIS media controls via dbus-send
+  notifications.py   D-Bus notification mirror → Decky toaster
+  profiles.py        Per-game overlay profiles
+  ptt.py             Push-to-talk via pactl mic mute/unmute
+  session.py         PipSession: Xvnc + guest + websockify lifecycle
+  settings.py        Atomic JSON settings store
+  trackpad.py        Trackpad-as-mouse via xdotool
+  updater.py         GitHub release check + setup.sh runner
+  vendoring.py       Self-contained noVNC + websockify bootstrap
 src/index.tsx        Quick Access UI + iframe route
+defaults/install.sh  pacman dependency installer
+setup.sh             One-shot build + install script
+scripts/             CI helper scripts (make-zip.sh)
+tests/               pytest + vitest unit tests
 docs/                Research and architecture notes
 ```
 
@@ -78,7 +101,7 @@ in **System** to fetch noVNC + websockify + Ludusavi + rclone.
 ### B. One-shot installer (Desktop Mode)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/claude/steamdeck-gaming-plugin-9YVmO/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/main/setup.sh | bash
 ```
 
 Installs build tools, clones, builds, copies, runs the pacman deps
@@ -97,8 +120,7 @@ bash setup.sh
 
 ```sh
 sudo pacman -Sy nodejs pnpm git
-git clone -b claude/steamdeck-gaming-plugin-9YVmO \
-    https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
+git clone https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
 cd DeckPiP
 pnpm install && pnpm run build
 
@@ -161,26 +183,22 @@ bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 - Guest audio shares the game's PulseAudio sink (no per-app loopback
   / audio ducking yet).
 - DOM-based hotkeys don't fire while the game has input focus.
-- Repository is private — Decky's "Install from URL" doesn't work
-  anonymously; see [Install](#install-on-a-steam-deck) for paths.
+- One PiP session at a time (no multi-window).
 
 ## Next steps
 
 In rough priority order:
 
-1. `pnpm install && pnpm run build` on a real machine; fix whatever
-   the rollup config complains about.
-2. Bootstrap script that fetches a portable KasmVNC tarball into
-   `DECKY_PLUGIN_RUNTIME_DIR`, so the plugin does not depend on
-   `pacman`-installed binaries on the immutable SteamOS root.
-3. Whitelist + custom-command UI: let the user register their own
-   apps in `apps.json` from the panel.
-4. Audio routing: create a per-session PulseAudio sink for the guest
-   app, optional mute / volume slider in the panel.
-5. Controller-as-mouse: bind the right trackpad to noVNC pointer
-   events via `gamescope_action_binding`.
-6. Measure FPS and CPU overhead while a Vulkan game is running;
-   document the budget honestly.
+1. On-hardware validation: test end-to-end on a real Steam Deck and
+   update `docs/RESEARCH.md` statuses from [ASSUMED] to [VERIFIED].
+2. Controller-as-mouse: bind the right trackpad to noVNC pointer
+   events; current `trackpad.py` uses `xdotool` which needs focus.
+3. Per-session PulseAudio sink for the guest app (audio ducking /
+   per-app volume isolation, not just the global volume slider).
+4. Global hotkeys via `gamescope_action_binding` when that API
+   stabilises in a released SteamOS — avoids the Steam Input workaround.
+5. Measure FPS and CPU overhead during a Vulkan game; document the
+   budget honestly and consider GPU-copy path for GameMirror.
 
 ## Licence
 

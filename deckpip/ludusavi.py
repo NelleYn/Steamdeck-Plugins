@@ -191,5 +191,5 @@ def parse_backup_summary(payload: Any) -> dict:
     return {
         "games": len(games) if isinstance(games, dict) else 0,
         "total_bytes": total_bytes,
-        "errors": overall.get("processedGames", 0) and 0,
+        "errors": overall.get("errors", 0),
     }
