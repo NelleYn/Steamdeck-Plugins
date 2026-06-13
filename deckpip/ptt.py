@@ -5,12 +5,16 @@ from __future__ import annotations
 import asyncio
 import shutil
 
+from deckpip.session import _as_user_argv
+
 
 async def _set_mute(muted: bool) -> dict:
     if shutil.which("pactl") is None:
         return {"ok": False, "error": "missing_dependency:pactl"}
     proc = await asyncio.create_subprocess_exec(
-        "pactl", "set-source-mute", "@DEFAULT_SOURCE@", "true" if muted else "false",
+        *_as_user_argv(
+            ["pactl", "set-source-mute", "@DEFAULT_SOURCE@", "true" if muted else "false"]
+        ),
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 
-from deckpip.session import DISPLAY, GEOMETRY
+from deckpip.session import DISPLAY, GEOMETRY, _as_user_argv
 
 
 def _xvnc_size() -> tuple[int, int]:
@@ -25,7 +25,7 @@ async def mouse_move(x_pct: float, y_pct: float) -> dict:
         return {"ok": False, "error": "missing_dependency:xdotool"}
     px, py = pct_to_pixels(x_pct, y_pct)
     proc = await asyncio.create_subprocess_exec(
-        "xdotool", "mousemove", "--sync", str(px), str(py),
+        *_as_user_argv(["xdotool", "mousemove", "--sync", str(px), str(py)]),
         env={"DISPLAY": DISPLAY},
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
@@ -41,7 +41,7 @@ async def mouse_button(button: int, action: str) -> dict:
     if cmd is None or button not in (1, 2, 3, 4, 5):
         return {"ok": False, "error": "bad_input"}
     proc = await asyncio.create_subprocess_exec(
-        "xdotool", cmd, str(button),
+        *_as_user_argv(["xdotool", cmd, str(button)]),
         env={"DISPLAY": DISPLAY},
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,

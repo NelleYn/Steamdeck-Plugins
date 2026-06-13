@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import shutil
 
+from deckpip.session import _as_user_argv
+
 
 async def _pactl_list_sink_inputs() -> str:
     if shutil.which("pactl") is None:
         return ""
     proc = await asyncio.create_subprocess_exec(
-        "pactl", "list", "sink-inputs",
+        *_as_user_argv(["pactl", "list", "sink-inputs"]),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -64,7 +66,7 @@ async def set_guest_volume(guest_pid: int, percent: int) -> dict:
     affected = 0
     for sid in sink_inputs:
         proc = await asyncio.create_subprocess_exec(
-            "pactl", "set-sink-input-volume", sid, f"{percent}%",
+            *_as_user_argv(["pactl", "set-sink-input-volume", sid, f"{percent}%"]),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )

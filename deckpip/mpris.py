@@ -17,7 +17,7 @@ import os
 import re
 import shutil
 
-from deckpip.session import DISPLAY
+from deckpip.session import DISPLAY, _as_user_argv
 
 MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 
@@ -97,13 +97,14 @@ async def _dbus_send(*args: str) -> tuple[int, str]:
         return -1, ""
     env = {**os.environ, "DISPLAY": DISPLAY}
     proc = await asyncio.create_subprocess_exec(
-        "dbus-send", "--session", "--print-reply", *args,
+        *_as_user_argv(["dbus-send", "--session", "--print-reply", *args]),
         env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
     out, _ = await proc.communicate()
-    return proc.returncode or 0, out.decode(errors="replace")
+    rc = proc.returncode if proc.returncode is not None else -1
+    return rc, out.decode(errors="replace")
 
 
 async def list_players() -> list[dict]:
@@ -153,4 +154,6 @@ async def player_action(bus_name: str, action: str) -> dict:
         "/org/mpris/MediaPlayer2",
         f"org.mpris.MediaPlayer2.Player.{action}",
     )
-    return {"ok": rc == 0}
+    if rc != 0:
+        return {"ok": False, "error": f"dbus_send_rc:{rc}"}
+    return {"ok": True}

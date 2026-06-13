@@ -25,7 +25,7 @@ import re
 import shutil
 from collections.abc import Awaitable, Callable
 
-from deckpip.session import DISPLAY
+from deckpip.session import DISPLAY, _as_user_argv
 
 _APP_NAME_RE = re.compile(r'^string "(.*?)"$')
 
@@ -85,8 +85,10 @@ class NotificationMirror:
             return {"ok": False, "error": "missing_dependency:dbus-monitor"}
         env = {**os.environ, "DISPLAY": DISPLAY}
         self._proc = await asyncio.create_subprocess_exec(
-            "dbus-monitor", "--session",
-            "interface='org.freedesktop.Notifications'",
+            *_as_user_argv([
+                "dbus-monitor", "--session",
+                "interface='org.freedesktop.Notifications'",
+            ]),
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,

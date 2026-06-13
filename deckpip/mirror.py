@@ -123,7 +123,7 @@ async def _rename_and_fullscreen(pid: int, env: dict) -> None:
 
     with contextlib.suppress(Exception):
         rename = await asyncio.create_subprocess_exec(
-            "xdotool", "set_window", "--name", "GameMirror", wid,
+            *_as_user_argv(["xdotool", "set_window", "--name", "GameMirror", wid]),
             env=env,
         )
         await rename.wait()
@@ -134,7 +134,7 @@ async def _rename_and_fullscreen(pid: int, env: dict) -> None:
 
     with contextlib.suppress(Exception):
         wm = await asyncio.create_subprocess_exec(
-            "wmctrl", "-r", "GameMirror", "-b", "add,fullscreen",
+            *_as_user_argv(["wmctrl", "-r", "GameMirror", "-b", "add,fullscreen"]),
             env=env,
         )
         await wm.wait()
@@ -147,7 +147,7 @@ async def _find_window_for_pid(pid: int, env: dict, deadline_seconds: float) -> 
         await asyncio.sleep(0.2)
         try:
             search = await asyncio.create_subprocess_exec(
-                "xdotool", "search", "--pid", str(pid),
+                *_as_user_argv(["xdotool", "search", "--pid", str(pid)]),
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
