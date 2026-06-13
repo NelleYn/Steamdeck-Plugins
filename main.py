@@ -82,6 +82,7 @@ from deckpip.profiles import (
 from deckpip.profiles import (
     set_profile as _set_profile,
 )
+from deckpip.ptt import ptt_press as _ptt_unmute
 from deckpip.ptt import send_key as _ptt_send_key
 from deckpip.session import PipSession, novnc_dir, terminate, websockify_argv
 from deckpip.settings import SettingsStore
@@ -475,6 +476,8 @@ class Plugin:
             await self._notif_mirror.stop()
             self._notif_mirror = None
         await self.stop_pip()
+        with contextlib.suppress(Exception):
+            await _ptt_unmute()
         decky.logger.info("DeckPiP unloaded")
 
     async def _uninstall(self) -> None:

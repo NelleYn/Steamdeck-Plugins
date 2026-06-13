@@ -609,7 +609,8 @@ export function Content() {
     toaster.toast({ title: "DeckPiP", body: "GitHub token saved" });
   };
 
-  if (running) {    return (
+  if (running) {
+    return (
       <PanelSection title={`DeckPiP — ${running.label}`}>
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={onStop}>

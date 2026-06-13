@@ -28,7 +28,8 @@ export const installDeps = callable<[], InstallResult>("install_dependencies");
 export const startPip = callable<[app_id: string, audio_only: boolean], StartResult>("start_pip");
 export const stopPip = callable<[], SimpleResult>("stop_pip");
 export const settingsGet = callable<[key: string, dflt: unknown], unknown>("settings_get");
-export const settingsSet = callable<[key: string, value: unknown], SimpleResult>("settings_set");export const addCustomApp = callable<
+export const settingsSet = callable<[key: string, value: unknown], SimpleResult>("settings_set");
+export const addCustomApp = callable<
   [id: string, label: string, command: string],
   SimpleResult
 >("add_custom_app");

@@ -161,8 +161,6 @@ bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 - Guest audio shares the game's PulseAudio sink (no per-app loopback
   / audio ducking yet).
 - DOM-based hotkeys don't fire while the game has input focus.
-- Repository is private — Decky's "Install from URL" doesn't work
-  anonymously; see [Install](#install-on-a-steam-deck) for paths.
 
 ## Next steps
 

@@ -23,7 +23,7 @@ async def _which(binary: str) -> dict[str, Any]:
     try:
         text, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
         out["version"] = text.decode(errors="replace").strip().splitlines()[0:1]
-    except (TimeoutError, Exception):
+    except Exception:
         out["version"] = None
     return out
 
