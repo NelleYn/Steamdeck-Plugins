@@ -188,8 +188,14 @@ def parse_backup_summary(payload: Any) -> dict:
     total_bytes = overall.get("totalBytes", 0)
     if not isinstance(total_bytes, int):
         total_bytes = 0
+    total_games = overall.get("totalGames", 0)
+    processed_games = overall.get("processedGames", 0)
+    if not isinstance(total_games, int):
+        total_games = 0
+    if not isinstance(processed_games, int):
+        processed_games = 0
     return {
         "games": len(games) if isinstance(games, dict) else 0,
         "total_bytes": total_bytes,
-        "errors": overall.get("processedGames", 0) and 0,
+        "errors": max(0, total_games - processed_games),
     }
