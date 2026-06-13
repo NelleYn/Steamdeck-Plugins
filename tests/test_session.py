@@ -15,15 +15,15 @@ def test_url_audio_only_is_none() -> None:
     assert s.url() is None
 
 
-def test_url_normal_contains_truncated_token() -> None:
+def test_url_normal_contains_full_token() -> None:
     app = {"id": "x", "label": "x", "command": ["xterm"]}
-    s = PipSession(
-        app, "0123456789abcdef" * 2, audio_only=False, runtime_dir=Path("/tmp")
-    )
+    token = "0123456789abcdef" * 2
+    s = PipSession(app, token, audio_only=False, runtime_dir=Path("/tmp"))
     url = s.url()
     assert url is not None
-    # Token is truncated to first 8 chars (TigerVNC limit).
-    assert "password=01234567" in url
+    # Full token travels in the loopback-scoped URL; VncAuth truncates to
+    # 8 bytes client-side.
+    assert f"password={token}" in url
     assert "vnc.html" in url
     assert "autoconnect=1" in url
     assert "resize=remote" in url

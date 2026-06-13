@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import pwd
 import shutil
 import signal
 import subprocess
@@ -34,6 +35,27 @@ def _as_user_argv(argv: list[str]) -> list[str]:
     if runuser is None:
         return argv
     return [runuser, "-u", DECK_USER, "--", *argv]
+
+
+def _deck_uid_gid() -> tuple[int, int] | None:
+    """Resolve DECK_USER's (uid, gid), or None if it can't be looked up."""
+    try:
+        pw = pwd.getpwnam(DECK_USER)
+    except KeyError:
+        return None
+    return pw.pw_uid, pw.pw_gid
+
+
+def chown_to_deck(path: Path) -> None:
+    """When running as root, give ``path`` to DECK_USER so the
+    privilege-dropped guest processes can read it. No-op otherwise."""
+    if os.geteuid() != 0:
+        return
+    ids = _deck_uid_gid()
+    if ids is None:
+        return
+    with contextlib.suppress(OSError):
+        os.chown(path, ids[0], ids[1])
 
 
 NOVNC_CANDIDATES = [
@@ -188,11 +210,13 @@ class PipSession:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate(input=self.token[:8].encode())
+        stdout, stderr = await proc.communicate(input=self.token.encode())
         if proc.returncode != 0:
             raise RuntimeError(f"vncpasswd failed: {stderr.decode(errors='replace')}")
         path.write_bytes(stdout)
         path.chmod(0o600)
+        chown_to_deck(self.runtime_dir)
+        chown_to_deck(path)
         return str(path)
 
     def url(self) -> str | None:
@@ -201,7 +225,7 @@ class PipSession:
         return (
             f"http://{VNC_BIND}:{VNC_WEB_PORT}/vnc.html"
             f"?host={VNC_BIND}&port={VNC_WEB_PORT}"
-            f"&password={self.token[:8]}"
+            f"&password={self.token}"
             f"&autoconnect=1&resize=remote&reconnect=1"
         )
 

@@ -16,6 +16,7 @@ We keep two strategies live in parallel:
 from __future__ import annotations
 
 import asyncio
+import shlex
 import shutil
 import sys
 import tarfile
@@ -29,6 +30,16 @@ NOVNC_DIRNAME = f"noVNC-{NOVNC_VERSION}"
 
 def vendored_root(runtime_dir: Path) -> Path:
     return Path(runtime_dir) / "vendored"
+
+
+def _chown_tree_to_deck(root: Path) -> None:
+    """Give the vendored tree to the desktop user so the privilege-dropped
+    websockify (run via runuser) can read noVNC assets and execute the
+    wrapper. No-op when not running as root."""
+    from deckpip.session import chown_to_deck
+    chown_to_deck(root)
+    for child in root.rglob("*"):
+        chown_to_deck(child)
 
 
 def vendored_novnc(runtime_dir: Path) -> Path | None:
@@ -82,6 +93,7 @@ async def install_novnc(runtime_dir: Path, force: bool = False) -> dict:
         tarball.unlink(missing_ok=True)
     if not (target / "vnc.html").exists():
         return {"ok": False, "error": "vnc_html_missing_after_extract"}
+    _chown_tree_to_deck(target)
     return {"ok": True, "path": str(target)}
 
 
@@ -124,12 +136,15 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
         wrapper = bin_path.with_suffix(".real")
         if not wrapper.exists():
             bin_path.rename(wrapper)
+            sp = shlex.quote(str(site_packages[0]))
+            real = shlex.quote(str(wrapper))
             bin_path.write_text(
                 "#!/usr/bin/env bash\n"
-                f'PYTHONPATH="{site_packages[0]}${{PYTHONPATH:+:$PYTHONPATH}}" '
-                f'exec "{wrapper}" "$@"\n'
+                f'PYTHONPATH={sp}"${{PYTHONPATH:+:$PYTHONPATH}}" '
+                f'exec {real} "$@"\n'
             )
             bin_path.chmod(0o755)
+    _chown_tree_to_deck(target)
     return {"ok": True, "path": str(bin_path)}
 
 
