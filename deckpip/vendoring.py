@@ -26,6 +26,11 @@ NOVNC_VERSION = "1.5.0"
 NOVNC_URL = f"https://github.com/novnc/noVNC/archive/refs/tags/v{NOVNC_VERSION}.tar.gz"
 NOVNC_DIRNAME = f"noVNC-{NOVNC_VERSION}"
 
+# Pin websockify so a one-tap install pulls a known-good release instead of
+# whatever PyPI happens to serve at install time (a yanked/compromised
+# --upgrade would otherwise run with the plugin's elevated privileges).
+WEBSOCKIFY_VERSION = "0.12.0"
+
 
 def vendored_root(runtime_dir: Path) -> Path:
     return Path(runtime_dir) / "vendored"
@@ -99,7 +104,8 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
         sys.executable, "-m", "pip", "install",
         "--prefix", str(target),
         "--break-system-packages",  # PEP 668 SteamOS Python
-        "--upgrade", "websockify",
+        "--no-input",
+        f"websockify=={WEBSOCKIFY_VERSION}",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

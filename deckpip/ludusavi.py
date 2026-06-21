@@ -191,5 +191,26 @@ def parse_backup_summary(payload: Any) -> dict:
     return {
         "games": len(games) if isinstance(games, dict) else 0,
         "total_bytes": total_bytes,
-        "errors": overall.get("processedGames", 0) and 0,
+        "errors": _count_failed_files(games),
     }
+
+
+def _count_failed_files(games: Any) -> int:
+    """Count files Ludusavi failed to back up/restore across all games.
+
+    Each game in the --api ``games`` map carries a ``files`` dict whose
+    entries flag failures with ``"failed": true``. The previous code used the
+    ``X and 0`` idiom which always evaluated to 0, so partial failures were
+    silently reported as success."""
+    if not isinstance(games, dict):
+        return 0
+    errors = 0
+    for game in games.values():
+        if not isinstance(game, dict):
+            continue
+        files = game.get("files")
+        if isinstance(files, dict):
+            for entry in files.values():
+                if isinstance(entry, dict) and entry.get("failed"):
+                    errors += 1
+    return errors

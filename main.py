@@ -100,6 +100,41 @@ from deckpip.vendoring import install_all as _vendor_install
 from deckpip.vendoring import status as _vendor_status
 
 
+def _merge_id_list(current: list, incoming: list) -> list:
+    """Union two lists of ``{"id": ...}`` dicts, payload entries overriding
+    existing ones with the same id, first-seen order preserved."""
+    by_id: dict[Any, dict] = {}
+    order: list[Any] = []
+    extras: list = []
+    for item in [*current, *incoming]:
+        if isinstance(item, dict) and "id" in item:
+            if item["id"] not in by_id:
+                order.append(item["id"])
+            by_id[item["id"]] = item
+        else:
+            extras.append(item)
+    return [by_id[i] for i in order] + extras
+
+
+def merge_settings(current: dict, payload: dict) -> dict:
+    """Deep-merge an imported settings ``payload`` into ``current`` so a
+    partial import doesn't wipe sibling entries. Dict collections (e.g.
+    ``game_profiles``) merge by key; id-keyed lists (``custom_apps``,
+    ``bookmarks``) merge by id; scalars are overwritten."""
+    merged = dict(current)
+    for key, val in payload.items():
+        cur = merged.get(key)
+        if isinstance(cur, dict) and isinstance(val, dict):
+            combined = dict(cur)
+            combined.update(val)
+            merged[key] = combined
+        elif isinstance(cur, list) and isinstance(val, list):
+            merged[key] = _merge_id_list(cur, val)
+        else:
+            merged[key] = val
+    return merged
+
+
 class Plugin:
     # Per-instance state is initialised lazily so the class itself can be
     # imported (e.g. by the test smoke check) without a running event loop.
@@ -216,9 +251,10 @@ class Plugin:
 
     async def ludusavi_status(self) -> dict:
         rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        path = _ludusavi_resolve(rt)
         return {
-            "installed": _ludusavi_resolve(rt) is not None,
-            "path": _ludusavi_resolve(rt) or "",
+            "installed": path is not None,
+            "path": path or "",
         }
 
     async def ludusavi_install(self, force: bool = False) -> dict:
@@ -248,9 +284,10 @@ class Plugin:
 
     async def rclone_status(self) -> dict:
         rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        path = _rclone_resolve(rt)
         return {
-            "installed": _rclone_resolve(rt) is not None,
-            "path": _rclone_resolve(rt) or "",
+            "installed": path is not None,
+            "path": path or "",
             "config_file": str(Path.home() / ".config" / "rclone" / "rclone.conf"),
         }
 
@@ -299,10 +336,17 @@ class Plugin:
         """Run the full one-tap setup: vendored noVNC+websockify, Ludusavi,
         rclone. Each step is independent — partial success is reported."""
         rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
-        results = {
-            "vendored": await _vendor_install(rt, force=False),
-            "ludusavi": await _ludusavi_install(rt, force=False),
-            "rclone": await _rclone_install(rt, force=False),
+        # The three downloads are independent, so fetch them concurrently
+        # rather than serially — over slow Deck wifi this is ~3x faster.
+        vendored, ludusavi, rclone = await asyncio.gather(
+            _vendor_install(rt, force=False),
+            _ludusavi_install(rt, force=False),
+            _rclone_install(rt, force=False),
+        )
+        results: dict = {
+            "vendored": vendored,
+            "ludusavi": ludusavi,
+            "rclone": rclone,
         }
         results["ok"] = all(
             isinstance(r, dict) and r.get("ok") for r in results.values()
@@ -321,13 +365,27 @@ class Plugin:
             if app is None:
                 return {"ok": False, "error": "unknown_app"}
 
+            rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+            # Pre-flight every dependency the session needs *before* we launch
+            # Xvnc + the guest app, so a missing piece is reported up-front
+            # instead of flashing the guest open and immediately killing it.
             if shutil.which("Xvnc") is None:
                 return {"ok": False, "error": "missing_dependency:Xvnc"}
+            if shutil.which("vncpasswd") is None:
+                return {"ok": False, "error": "missing_dependency:vncpasswd"}
+            if not audio_only:
+                if novnc_dir(rt) is None:
+                    return {"ok": False, "error": "missing_dependency:novnc"}
+                if websockify_argv(rt) is None:
+                    return {"ok": False, "error": "missing_dependency:websockify"}
 
-            token = secrets.token_hex(8)
+            # VncAuth (DES) only uses the first 8 chars as the key, so generate
+            # 8 chars from a wide alphabet rather than hex (which would waste
+            # half the keyspace on 0-9a-f).
+            token = secrets.token_urlsafe(8)
             session = PipSession(
                 app, token, audio_only=audio_only,
-                runtime_dir=Path(decky.DECKY_PLUGIN_RUNTIME_DIR),
+                runtime_dir=rt,
             )
             try:
                 await session.start()
@@ -413,8 +471,7 @@ class Plugin:
         store = self._get_settings()
         if merge:
             current = store._load()  # noqa: SLF001
-            current.update(payload)
-            store._save(current)  # noqa: SLF001
+            store._save(merge_settings(current, payload))  # noqa: SLF001
         else:
             store._save(payload)  # noqa: SLF001
         return {"ok": True}

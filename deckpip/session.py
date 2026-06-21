@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import os
+import pwd
 import shutil
 import signal
 import subprocess
@@ -34,6 +36,37 @@ def _as_user_argv(argv: list[str]) -> list[str]:
     if runuser is None:
         return argv
     return [runuser, "-u", DECK_USER, "--", *argv]
+
+
+@functools.lru_cache(maxsize=1)
+def _deck_uid() -> int | None:
+    try:
+        return pwd.getpwnam(DECK_USER).pw_uid
+    except KeyError:
+        return None
+
+
+def deck_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for helper subprocesses (xdotool, pactl, dbus-monitor)
+    that must talk to the *deck user's* X server (DISPLAY :42), PulseAudio
+    and session bus — not root's.
+
+    When we run as root we point XDG_RUNTIME_DIR / DBUS_SESSION_BUS_ADDRESS
+    at the deck user's runtime dir so pactl and dbus-monitor connect to the
+    right session; combined with ``_as_user_argv`` the process actually runs
+    as ``deck`` and inherits its X authority. Off-root (dev/tests) we just
+    pin DISPLAY and inherit the current environment.
+    """
+    env = {**os.environ, "DISPLAY": DISPLAY}
+    if os.geteuid() == 0:
+        uid = _deck_uid()
+        if uid is not None:
+            run_dir = f"/run/user/{uid}"
+            env["XDG_RUNTIME_DIR"] = run_dir
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={run_dir}/bus"
+    if extra:
+        env.update(extra)
+    return env
 
 
 NOVNC_CANDIDATES = [
@@ -206,6 +239,12 @@ class PipSession:
         )
 
     async def stop(self) -> None:
+        # A SIGSTOPped process ignores SIGTERM until it gets SIGCONT, so a
+        # paused session would otherwise sit frozen through the whole grace
+        # period before being SIGKILLed. Resume first so terminate() works.
+        if self.paused:
+            self._signal_all(signal.SIGCONT)
+            self.paused = False
         # Reverse start order so children die first.
         for proc in (self.mirror, self.websockify, self.guest, self.xvnc):
             await terminate(proc)

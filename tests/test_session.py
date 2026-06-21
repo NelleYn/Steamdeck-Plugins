@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deckpip.session import PipSession, terminate, wait_port
+from deckpip.session import DISPLAY, PipSession, deck_env, terminate, wait_port
 
 # ---- url() formatting ----------------------------------------------------
 
@@ -30,6 +30,17 @@ def test_url_normal_contains_truncated_token() -> None:
 
 
 # ---- terminate() lifecycle ----------------------------------------------
+
+
+def test_deck_env_sets_display() -> None:
+    env = deck_env()
+    assert env["DISPLAY"] == DISPLAY
+
+
+def test_deck_env_merges_extra() -> None:
+    env = deck_env({"FOO": "bar"})
+    assert env["FOO"] == "bar"
+    assert env["DISPLAY"] == DISPLAY
 
 
 @pytest.mark.asyncio

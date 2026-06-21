@@ -3,7 +3,7 @@ name: Build DeckPiP
 on:
   push:
     branches:
-      - claude/steamdeck-gaming-plugin-9YVmO
+      - main
   pull_request:
   workflow_dispatch:
 

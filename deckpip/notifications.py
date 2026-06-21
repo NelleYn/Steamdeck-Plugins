@@ -20,14 +20,27 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import os
 import re
 import shutil
 from collections.abc import Awaitable, Callable
 
-from deckpip.session import DISPLAY
+from deckpip.session import _as_user_argv, deck_env
 
 _APP_NAME_RE = re.compile(r'^string "(.*?)"$')
+
+
+def is_dbus_header(line: str) -> bool:
+    """True if ``line`` is a real dbus-monitor message header, not notification
+    content that merely starts with ``signal``/``method call``.
+
+    dbus-monitor headers always carry the message metadata (``sender=``), e.g.
+    ``method call time=… sender=:1.42 → destination=… member=Notify``. A
+    notification body containing a newline followed by ``method call foo`` has
+    no ``sender=`` and so won't be mistaken for a block boundary.
+    """
+    return (
+        line.startswith("method call") or line.startswith("signal")
+    ) and "sender=" in line
 
 
 def parse_notification_block(block: list[str]) -> dict | None:
@@ -83,11 +96,12 @@ class NotificationMirror:
             return {"ok": False, "error": "already_running"}
         if shutil.which("dbus-monitor") is None:
             return {"ok": False, "error": "missing_dependency:dbus-monitor"}
-        env = {**os.environ, "DISPLAY": DISPLAY}
         self._proc = await asyncio.create_subprocess_exec(
-            "dbus-monitor", "--session",
-            "interface='org.freedesktop.Notifications'",
-            env=env,
+            *_as_user_argv([
+                "dbus-monitor", "--session",
+                "interface='org.freedesktop.Notifications'",
+            ]),
+            env=deck_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -111,20 +125,27 @@ class NotificationMirror:
 
     async def _reader(self) -> None:
         assert self._proc is not None and self._proc.stdout is not None
-        block: list[str] = []
-        async for raw in self._proc.stdout:
-            line = raw.decode(errors="replace").rstrip("\n")
-            if line.startswith("method call") or line.startswith("signal"):
-                if block:
-                    parsed = parse_notification_block(block)
-                    if parsed is not None:
-                        with contextlib.suppress(Exception):
-                            await self.on_notification(parsed)
-                block = [line]
-            elif block:
-                block.append(line)
-        if block:
-            parsed = parse_notification_block(block)
-            if parsed is not None:
-                with contextlib.suppress(Exception):
-                    await self.on_notification(parsed)
+        try:
+            block: list[str] = []
+            async for raw in self._proc.stdout:
+                line = raw.decode(errors="replace").rstrip("\n")
+                if is_dbus_header(line):
+                    if block:
+                        parsed = parse_notification_block(block)
+                        if parsed is not None:
+                            with contextlib.suppress(Exception):
+                                await self.on_notification(parsed)
+                    block = [line]
+                elif block:
+                    block.append(line)
+            if block:
+                parsed = parse_notification_block(block)
+                if parsed is not None:
+                    with contextlib.suppress(Exception):
+                        await self.on_notification(parsed)
+        finally:
+            # dbus-monitor exited on its own (display torn down, bus gone) —
+            # clear state so a future start() can spawn a fresh monitor instead
+            # of being stuck on "already_running" forever.
+            self._proc = None
+            self._task = None

@@ -81,6 +81,10 @@ async def _spawn_pipeline(argv: list[str], env: dict) -> subprocess.Popen | None
     )
     await asyncio.sleep(0.5)
     if proc.poll() is not None:
+        # gst-launch already died (pipewiresrc rejected its property). Reap it
+        # so we don't leak a zombie — the retry path spawns another one.
+        with contextlib.suppress(Exception):
+            await asyncio.to_thread(proc.wait)
         return None
     return proc
 
