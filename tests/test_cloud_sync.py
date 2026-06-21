@@ -1,4 +1,7 @@
+import zipfile
 from pathlib import Path
+
+import pytest
 
 from deckpip import cloud_sync
 
@@ -54,3 +57,38 @@ def test_parse_remotes_rejects_bad_chars() -> None:
 
 def test_parse_remotes_empty() -> None:
     assert cloud_sync.parse_remotes("") == []
+
+
+@pytest.mark.asyncio
+async def test_sync_up_rejects_injection_remote(tmp_path: Path) -> None:
+    # A connection-string-style remote must be rejected before rclone runs.
+    res = await cloud_sync.sync_up(tmp_path, tmp_path, ":http,url=http://evil", "p")
+    assert res == {"ok": False, "error": "invalid_remote"}
+
+
+@pytest.mark.asyncio
+async def test_sync_down_rejects_injection_remote(tmp_path: Path) -> None:
+    res = await cloud_sync.sync_down(tmp_path, tmp_path, "has space", "p")
+    assert res == {"ok": False, "error": "invalid_remote"}
+
+
+def test_safe_extract_zip_rejects_traversal(tmp_path: Path) -> None:
+    archive = tmp_path / "evil.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("../escape.txt", "pwned")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with zipfile.ZipFile(archive) as zf, pytest.raises(RuntimeError):
+        cloud_sync._safe_extract_zip(zf, dest)
+    assert not (tmp_path / "escape.txt").exists()
+
+
+def test_safe_extract_zip_extracts_normal_members(tmp_path: Path) -> None:
+    archive = tmp_path / "ok.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("rclone-vX/rclone", "binary")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with zipfile.ZipFile(archive) as zf:
+        cloud_sync._safe_extract_zip(zf, dest)
+    assert (dest / "rclone-vX" / "rclone").read_text() == "binary"

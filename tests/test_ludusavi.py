@@ -53,6 +53,28 @@ def test_summary_from_well_formed_payload() -> None:
     assert summary["total_bytes"] == 12345
 
 
+def test_summary_counts_failed_files() -> None:
+    # A backup where some files failed must report a non-zero error count
+    # (regression: the old `X and 0` idiom always reported 0).
+    summary = ludusavi.parse_backup_summary({
+        "overall": {"totalBytes": 10, "processedGames": 2},
+        "games": {
+            "Game A": {"files": {"/a": {"failed": False}, "/b": {"failed": True}}},
+            "Game B": {"files": {"/c": {"failed": True}}},
+        },
+    })
+    assert summary["errors"] == 2
+    assert summary["games"] == 2
+
+
+def test_summary_no_errors_when_all_succeed() -> None:
+    summary = ludusavi.parse_backup_summary({
+        "overall": {"totalBytes": 10, "processedGames": 1},
+        "games": {"Game A": {"files": {"/a": {"failed": False}}}},
+    })
+    assert summary["errors"] == 0
+
+
 def test_summary_from_garbage_payload() -> None:
     assert ludusavi.parse_backup_summary("not a dict") == {
         "games": 0, "total_bytes": 0, "errors": 0,

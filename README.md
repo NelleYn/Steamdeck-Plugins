@@ -120,7 +120,8 @@ bash setup.sh
 
 ```sh
 sudo pacman -Sy nodejs pnpm git
-git clone https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
+git clone -b main \
+    https://github.com/NelleYn/Steamdeck-Plugins.git DeckPiP
 cd DeckPiP
 pnpm install && pnpm run build
 

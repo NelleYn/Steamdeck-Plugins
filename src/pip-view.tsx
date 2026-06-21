@@ -48,20 +48,25 @@ function MiniBadge() {
  *  forwards them as xdotool calls to Xvnc :42. Throttles moves to ~30 fps. */
 function PointerCapture() {
   const lastMove = useRef(0);
-  const sendMove = (e: React.PointerEvent) => {
+  // `force` bypasses the throttle and returns the RPC promise so callers can
+  // await it. On a tap we must position the cursor *before* pressing, or the
+  // click lands wherever the throttled last move left it.
+  const sendMove = (e: React.PointerEvent, force = false): Promise<unknown> => {
     const now = performance.now();
-    if (now - lastMove.current < 33) return;
+    if (!force && now - lastMove.current < 33) return Promise.resolve();
     lastMove.current = now;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    mouseMove(x, y).catch(() => {});
+    return mouseMove(x, y).catch(() => {});
   };
   return (
     <div
-      onPointerMove={sendMove}
-      onPointerDown={(e) => {
+      onPointerMove={(e) => {
         sendMove(e);
+      }}
+      onPointerDown={async (e) => {
+        await sendMove(e, true);
         mouseButton(1, "press").catch(() => {});
       }}
       onPointerUp={() => {
