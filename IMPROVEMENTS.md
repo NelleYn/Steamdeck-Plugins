@@ -2,6 +2,17 @@
 
 _Сгенерировано автоматически: 200 идей, из них отобрано 36 лучших._
 
+## Статус выполнения (сверка 2026-07-16)
+
+Пункты раздела «Топ» сверены с фактическим кодом в ветке `main`. Планы **не мёрджились** — это независимая разработка, совпавшая с предложениями.
+
+- ✅ Сделано: 0
+- 🟡 Частично: 0
+- ⬜ Не реализовано: 36
+- ❓ Не удалось проверить: 0
+
+На момент сверки в ветке `main` не было изменений, затрагивающих эти пункты.
+
 ## О проекте
 
 DeckPiP — Decky-плагин для Steam Deck, который выводит произвольное Linux GUI-приложение
@@ -21,6 +32,7 @@ gstreamer), `mpris.py` / `notifications.py` / `audio.py` / `ptt.py` / `trackpad.
 ## Топ 36: приоритетные улучшения
 
 ### 1. `run_update` всегда падает: `setup.sh` требует пользователя `deck`, а бэкенд работает под root
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** High · **Effort:** M
 **Обоснование:** `deckpip/updater.py::run_setup` запускает `bash setup.sh` из root-процесса Decky (`_root`),
 но `setup.sh:27` содержит `[[ "$(id -un)" == "deck" ]] || die "Run as the 'deck' user"`. Значит кнопка
@@ -28,6 +40,7 @@ gstreamer), `mpris.py` / `notifications.py` / `audio.py` / `ptt.py` / `trackpad.
 запускать setup через `runuser -u deck`, либо вынести общую часть в скрипт, не требующий deck-пользователя.
 
 ### 2. Гостевое приложение стартует без `deck_env()` — ломается PulseAudio/DBus/Flatpak под root
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** High · **Effort:** M
 **Обоснование:** В `deckpip/session.py::start` guest запускается с `env = {**os.environ, "DISPLAY": DISPLAY}`,
 без `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` deck-пользователя, которые как раз готовит `deck_env()`.
@@ -35,6 +48,7 @@ gstreamer), `mpris.py` / `notifications.py` / `audio.py` / `ptt.py` / `trackpad.
 звук/сессионную шину. Guest должен запускаться с `deck_env()`, как это уже делают `audio.py`/`ptt.py`/`notifications.py`.
 
 ### 3. Файл `vncpasswd` пишется root'ом с правами 0600 — `Xvnc` под `deck` не может его прочитать
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** High · **Effort:** M
 **Обоснование:** `session.py::_write_vnc_passwd` вызывает `vncpasswd` как root и делает `path.chmod(0o600)`,
 после чего `Xvnc` запускается через `runuser -u deck` с `-PasswordFile`. Root-owned файл с 0600 не читается
@@ -42,12 +56,14 @@ deck-пользователем → `Xvnc` не стартует с VncAuth. Н�
 либо генерировать пароль из-под deck.
 
 ### 4. MPRIS не работает под root: `mpris.py` не использует `_as_user_argv`/`deck_env`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** High · **Effort:** S
 **Обоснование:** `deckpip/mpris.py::_dbus_send` задаёт только `DISPLAY`, но не оборачивает `dbus-send` в
 `runuser` и не выставляет `DBUS_SESSION_BUS_ADDRESS`. Под `_root` `dbus-send --session` попадёт на шину root'а,
 где плееров нет, поэтому `list_players()` всегда пуст. Привести к тому же паттерну, что и `notifications.py`.
 
 ### 5. GameMirror ищет PipeWire-узел не в той сессии: `pw-cli`/gstreamer без deck-окружения
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** High · **Effort:** M
 **Обоснование:** `deckpip/mirror.py::find_gamescope_pw_node` вызывает `pw-cli ls Node` без `_as_user_argv`/`deck_env`,
 а `_spawn_pipeline` запускает gstreamer с `env` без `XDG_RUNTIME_DIR`. Под root PipeWire-сокет deck-пользователя
@@ -55,18 +71,21 @@ deck-пользователем → `Xvnc` не стартует с VncAuth. Н�
 `runuser`.
 
 ### 6. `install_websockify(force=True)` оставляет неработающий wrapper
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Med · **Effort:** S
 **Обоснование:** В `deckpip/vendoring.py::install_websockify` при переустановке pip заново создаёт `bin/websockify`
 (настоящий скрипт), но `.real` уже существует, поэтому ветка `if not wrapper.exists()` пропускается и PYTHONPATH-обёртка
 не переустанавливается — импорт `websockify` затем падает. Нужно удалять/пересоздавать `.real` при `force=True`.
 
 ### 7. Экспорт настроек утекает GitHub PAT в открытом виде
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Security · **Impact:** High · **Effort:** S
 **Обоснование:** `main.py::export_settings` возвращает целиком `SettingsStore._load()`, включая ключ `github_token`,
 а `panel.tsx::onExport` копирует это в буфер обмена и показывает в `<pre>`. Токен нужно исключать/маскировать при
 экспорте (и хранить отдельно от общих настроек).
 
 ### 8. Нет проверки контрольных сумм скачиваемых бинарей (noVNC, ludusavi, rclone, websockify)
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Security · **Impact:** High · **Effort:** M
 **Обоснование:** `vendoring.py`, `ludusavi.py`, `cloud_sync.py` качают релизы с GitHub и распаковывают под
 root в `DECKY_PLUGIN_RUNTIME_DIR`, полагаясь только на HTTPS. Скомпрометированный релиз/зеркало исполнится с
@@ -74,165 +93,193 @@ root в `DECKY_PLUGIN_RUNTIME_DIR`, полагаясь только на HTTPS. 
 `pip install --require-hashes`.
 
 ### 9. `panel.tsx` — монолит на 1323 строки с ~40 `useState` в одном компоненте
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Architecture / refactor · **Impact:** High · **Effort:** L
 **Обоснование:** `Content()` в `src/panel.tsx` содержит все четыре вкладки (Apps/Sync/Web/System), десятки
 хендлеров и состояний. Разбить на компоненты-вкладки (`AppsTab`, `SyncTab`, `WebTab`, `SystemTab`) и вынести
 логику в хуки — резко снизит связность и упростит тестирование.
 
 ### 10. `NotificationMirror.stop()` может оставлять зомби `dbus-monitor`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Med · **Effort:** S
 **Обоснование:** `notifications.py::start` запускает `runuser … dbus-monitor` без `preexec_fn=os.setsid`, а
 `stop()` шлёт `self._proc.terminate()` только процессу `runuser`. Дочерний `dbus-monitor` может пережить сигнал.
 Использовать `os.setsid` + `killpg`, как в `session.terminate()`.
 
 ### 11. Опечатка-стиль в `src/api.ts`: два `export` на одной строке
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Low · **Effort:** S
 **Обоснование:** `src/api.ts:31` — `...("settings_set");export const addCustomApp = ...` склеены в одну строку.
 Работает, но это явный след ручной правки; надо разнести и добавить lint фронтенда (см. п. 12), чтобы такое ловилось.
 
 ### 12. Нет линтера/форматтера для фронтенда (eslint + prettier), CI его не проверяет
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Tests & CI · **Impact:** Med · **Effort:** M
 **Обоснование:** `package.json` имеет только `build`/`watch`/`test`/`typecheck`; `.editorconfig` задаёт стиль,
 но ничем не форсится. Добавить eslint + prettier и шаг `pnpm run lint` в `build.yml` (job `frontend`) — поймало бы
 дефект из п. 11 и стабилизировало стиль в 8 tsx/ts-файлах.
 
 ### 13. Жёстко зашитые `DISPLAY :42`, geometry `1280x800`, порты 5942/6901
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Config / build · **Impact:** Med · **Effort:** M
 **Обоснование:** Константы в `session.py` (`DISPLAY`, `GEOMETRY`, `VNC_RFB_PORT`, `VNC_WEB_PORT`) не настраиваются;
 TROUBLESHOOTING сам признаёт проблему конфликта порта/stale-lock. Вынести в настройки + автоподбор свободного
 дисплея/порта устранит целый класс «Xvnc did not start listening on 5942».
 
 ### 14. `settingsSet` вызывается на каждый keystroke (remote/path/hotkey) — нет дебаунса
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Performance · **Impact:** Med · **Effort:** S
 **Обоснование:** В `panel.tsx` поля `cloud_remote`, `cloud_path`, а также hotkey-поля через `store.set(...)`
 пишут в бэкенд на каждый символ (read-modify-write JSON в `SettingsStore`). Дебаунс/`onBlur`-сохранение снизит
 IO и риск потери апдейтов (см. п. 15).
 
 ### 15. `SettingsStore` не защищён от гонок read-modify-write
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Med · **Effort:** M
 **Обоснование:** `settings.py::set` делает `_load()`→mutate→`_save()` без блокировки. Атомарный `os.replace`
 спасает от порчи файла, но параллельные `settings_set` из разных хендлеров теряют апдейты (last-writer-wins).
 Ввести `asyncio.Lock` вокруг чтения-записи или единый writer.
 
 ### 16. `diagnostics._which` не убивает зависший процесс по таймауту и содержит избыточный `except`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Error handling & logging · **Impact:** Med · **Effort:** S
 **Обоснование:** В `deckpip/diagnostics.py` при таймауте `--version` процесс не `kill()`-ается (утечка зомби),
 а `except (TimeoutError, Exception)` избыточен (TimeoutError — подкласс Exception) и глотает всё молча. Добавить
 `proc.kill()` в ветке таймаута и сузить перехват.
 
 ### 17. README противоречит сам себе: «repository is public» vs «Repository is private»
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Documentation · **Impact:** Med · **Effort:** S
 **Обоснование:** `README.md:63` утверждает, что репозиторий public, а «Known gaps» (`README.md:164`) — что private
 и anonymous install не работает. Одно из утверждений устарело; читатель не понимает, работает ли путь A установки.
 
 ### 18. Документация ссылается на KasmVNC/Xvfb, хотя реализация на TigerVNC `Xvnc`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Documentation · **Impact:** Med · **Effort:** S
 **Обоснование:** `README.md` («How it works»), `docs/RESEARCH.md` и `docs/DISCORD_STREAMING.md` упоминают
 `Xvfb`/KasmVNC, а `ARCHITECTURE.md` в «Security» пишет «KasmVNC bound to 127.0.0.1». Фактически используется
 `Xvnc` (TigerVNC). Привести доки в соответствие с кодом (`session.py`).
 
 ### 19. `ARCHITECTURE.md` перечисляет устаревший набор pacman-зависимостей
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Documentation · **Impact:** Med · **Effort:** S
 **Обоснование:** Раздел «Runtime dependencies» упоминает `python-websockify`, `novnc`, `xterm`, `wmctrl` как
 pacman-пакеты, но `defaults/install.sh` теперь вендорит websockify/novnc и убрал `xterm`/`xdotool` из required.
 Синхронизировать список (иначе пользователь ставит лишнее).
 
 ### 20. `check_release`/updater ссылаются на «feature branch», а CI триггерится на `main`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Documentation · **Impact:** Low · **Effort:** S
 **Обоснование:** `README.md:74` и тело релиза в `build.yml` говорят «push to the feature branch», хотя
 `.github/workflows/build.yml` слушает `branches: [main]`. Мелкая, но вводящая в заблуждение рассинхронизация
 после мержа в main.
 
 ### 21. Нет тестов на `diagnostics.py` и `ptt.py`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Tests & CI · **Impact:** Med · **Effort:** S
 **Обоснование:** В `tests/` есть покрытие почти всех модулей, но нет `test_diagnostics.py` и `test_ptt.py`.
 `ptt._set_mute` — критичная для безопасности логика (микрофон), её поведение press/release/key стоит закрепить
 тестом (mock `pactl`).
 
 ### 22. GitHub Actions не запинены по SHA, `permissions: contents: write` на весь workflow
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Security · **Impact:** Med · **Effort:** S
 **Обоснование:** `build.yml` использует `actions/*@v4`, `softprops/action-gh-release@v2` по плавающим тегам и
 даёт `contents: write` обоим job'ам. Запинить экшены по commit-SHA и сузить `permissions` до job'а, который
 публикует релиз (supply-chain hardening).
 
 ### 23. `iframe` для Web-PiP: `allow-scripts` + `allow-same-origin` на произвольном URL
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Security · **Impact:** Med · **Effort:** S
 **Обоснование:** В `pip-view.tsx` sandbox iframe включает `allow-scripts allow-same-origin` и для noVNC, и для
 произвольных пользовательских URL (bookmarks). Для web-режима это ослабляет изоляцию недоверенной страницы.
 Разделить политику sandbox: минимальные права для внешних URL, полные — только для loopback-noVNC.
 
 ### 24. `PointerCapture` начинается с `top: 28` независимо от touch-mode (header 50px)
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Med · **Effort:** S
 **Обоснование:** В `pip-view.tsx` overlay-слой захвата указателя жёстко `top: 28`, а высота header в touch-режиме
 `HEADER_TOUCH = 50`. Возникает мёртвая зона 28–50px, где события идут в header, а не в guest, и наоборот. Привязать
 `top` к `headerH`.
 
 ### 25. Нет верификации версий в едином источнике; `package.json` навсегда `0.0.1`, `plugin.json` без версии
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Config / build · **Impact:** Med · **Effort:** M
 **Обоснование:** `package.json:version` = `0.0.1`, `plugin.json` вообще без поля версии, релиз всегда `dev`.
 Пользователь и `check_update` не могут отличить сборки. Ввести единый version-источник и прокидывать его в
 `plugin.json`/релиз-тег.
 
 ### 26. `install_dependencies` и `run_setup` дублируют логику запуска subprocess с таймаутом
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Architecture / refactor · **Impact:** Low · **Effort:** S
 **Обоснование:** `main.py::install_dependencies` и `updater.py::run_setup` (и частично `cloud_sync._run`,
 `ludusavi._run`) повторяют один паттерн `create_subprocess_exec`+`wait_for`+обрезка stdout/stderr. Вынести
 общий `run_capture(argv, timeout)` — единая обработка таймаута/kill (см. также п. 16).
 
 ### 27. Молчаливое `catch(() => {})` по всему фронтенду скрывает ошибки RPC
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Error handling & logging · **Impact:** Med · **Effort:** M
 **Обоснование:** `index.tsx`, `panel.tsx`, `pip-view.tsx` изобилуют `.catch(() => {})`/`catch {}`. При проблемах
 (например, PTT/mouse RPC постоянно падают) пользователь не получает сигнала, а разработчик — логов. Ввести
 `logError()`-хелпер, который хотя бы пишет в консоль Decky.
 
 ### 28. `terminate()` не работает для процессов, запущенных не в своей группе (`runuser` без setsid у helper'ов)
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Med · **Effort:** M
 **Обоснование:** `session.terminate`/`_signal_all` рассчитывают на `os.setsid` (есть у Xvnc/guest/websockify/mirror).
 Но helper-процессы вроде notification-mirror и потенциальные будущие фоновые процессы запускаются без setsid, и
 `killpg` по их pgid убьёт не то. Единый спавнер с setsid устранит риск (связано с п. 10).
 
 ### 29. Нет CI-проверки, что `pnpm-lock.yaml` соответствует `package.json` кроме `--frozen-lockfile`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Tests & CI · **Impact:** Low · **Effort:** S
 **Обоснование:** CI ставит `--frozen-lockfile` (хорошо), но нет отдельного job'а на актуальность/аудит
 зависимостей (`pnpm audit`, `pip-audit`). Добавить security-audit шаг для 3 npm- и косвенных python-зависимостей.
 
 ### 30. Отсутствуют SECURITY.md, CONTRIBUTING.md, шаблоны issue/PR
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Documentation · **Impact:** Low · **Effort:** S
 **Обоснование:** Учитывая `_root`-бэкенд и загрузку внешних бинарей, стоит явно описать модель угроз и способ
 приватного репорта уязвимостей. Плюс шаблоны PR/issue помогут внешним тестерам, которых требует Decky Store
 (`docs/DECKY_STORE.md`).
 
 ### 31. `cloud_sync` валидирует `remote`, но не `path` (частичная защита от инъекции)
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Security · **Impact:** Med · **Effort:** S
 **Обоснование:** `cloud_sync.py::sync_up/sync_down` проверяют `remote` через `_REMOTE_NAME_RE`, но `path`
 подставляется в `f"{remote}:{path}"` как есть. Хотя `copy` (а не `sync`) снижает риск удаления, стоит
 валидировать/нормализовать `path` (запретить ведущие флаги/`:`), чтобы исключить неожиданные backend-строки.
 
 ### 32. Auto-launch и auto-backup регистрируют два независимых `onAppLifecycle`
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Performance · **Impact:** Low · **Effort:** S
 **Обоснование:** В `index.tsx` `installAutoLaunch` и `installAutoBackup` дважды подписываются на
 `RegisterForAppLifetimeNotifications`. Объединить в один слушатель — меньше регистраций в SteamClient и единая
 точка обработки жизненного цикла игры.
 
 ### 33. Нет мониторинга «умер ли Xvnc/guest» во время сессии
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** UX / features · **Impact:** Med · **Effort:** M
 **Обоснование:** `PipSession` стартует процессы, но не следит за их падением. Если guest упал (частый кейс из
 TROUBLESHOOTING — Flatpak-portal), overlay остаётся чёрным без объяснения. Добавить watcher, эмитящий событие в
 UI при неожиданном exit любого из процессов.
 
 ### 34. `discover_desktop_files` не кэшируется и повторно читает все `.desktop` при каждом сканировании
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Performance · **Impact:** Low · **Effort:** S
 **Обоснование:** `discovery.py::discover_all` перечитывает все каталоги приложений на каждый клик «Scan».
 На Deck это сотни файлов. Кэш с инвалидацией по mtime каталогов ускорит повторные сканы (кнопка «rescan» в
 Web-вкладке).
 
 ### 35. `store-core.hydrate` не валидирует диапазоны (opacity/geom из чужого импорта)
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Low · **Effort:** S
 **Обоснование:** `store-core.ts::hydrate` принимает любой `number` для `opacity` и валидный по форме `geom`, но
 не клампит их (`presets.clamp` есть, но к hydrate не применяется). Импортированные/битые настройки могут дать
 opacity 5000 или geom за экраном. Прогонять через `clamp`/диапазон 20–100.
 
 ### 36. Guest-приложения, помеченные `Terminal=true`, оборачиваются в `xterm -e`, но `xterm` больше не ставится
+> ⬜ **Статус (2026-07-16):** Не реализовано.
 **Категория:** Bugs / correctness · **Impact:** Low · **Effort:** S
 **Обоснование:** `discovery.py::parse_desktop_entry` для терминальных `.desktop` формирует `xterm -e <cmd>`,
 однако `defaults/install.sh` явно убрал `xterm` из зависимостей. Такие приложения не запустятся. Либо не
