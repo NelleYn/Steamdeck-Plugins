@@ -1,4 +1,6 @@
-from deckpip.mirror import parse_gamescope_node
+import pytest
+
+from deckpip.mirror import gst_argv, parse_gamescope_node, start_mirror_window
 
 PW_OUTPUT = """\
 \tid 35, type PipeWire:Interface:Node/3
@@ -54,3 +56,21 @@ def test_falls_back_to_name_match_when_no_video() -> None:
         "\t\tnode.description = \"gamescope (game session)\"\n"
     )
     assert parse_gamescope_node(out) == "5"
+
+
+# ---- gst_argv() / start_mirror_window() dependency resolution ------------
+
+
+def test_gst_argv_uses_given_binary() -> None:
+    argv = gst_argv("/vendored/bin/gst-launch-1.0", "42", "target-object")
+    assert argv[0] == "/vendored/bin/gst-launch-1.0"
+    assert "target-object=42" in argv
+
+
+@pytest.mark.asyncio
+async def test_start_mirror_window_raises_when_gst_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("deckpip.mirror.gst_launch_path", lambda _plugin_dir: None)
+    with pytest.raises(FileNotFoundError):
+        await start_mirror_window(None)

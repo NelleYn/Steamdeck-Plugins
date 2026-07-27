@@ -20,8 +20,14 @@ Likely causes:
 
 ## "Check dependencies" shows everything missing after install
 
-The pacman install ran but installed somewhere PATH doesn't reach.
-SteamOS resets PATH at session start. After `Install dependencies`:
+Since the release zip bundles TigerVNC, noVNC, websockify, and the
+GameMirror GStreamer stack (see [Bundled dependencies](#bundled-dependencies-vs-the-pacman-fallback)
+below), this usually only happens on a from-source build, or a zip
+built without running the vendoring scripts. Check what `diagnostics`
+reports for each binary's `path` — if it's empty, neither the bundled
+copy nor PATH resolved it.
+
+If you installed via `defaults/install.sh` (pacman) instead:
 
 ```sh
 which Xvnc vncpasswd websockify xterm wmctrl
@@ -30,6 +36,39 @@ ls /usr/share/novnc/vnc.html
 
 If any of those is missing, run `pacman -Q tigervnc python-websockify
 novnc xterm wmctrl` and reinstall whichever returns "not found".
+
+## Bundled dependencies vs. the pacman fallback
+
+The release zip normally ships noVNC, websockify, Ludusavi, rclone,
+TigerVNC (Xvnc/vncpasswd), and the optional GameMirror GStreamer stack
+pre-built, so a fresh install needs nothing downloaded or
+pacman-installed separately — see the README's
+[Install on a Steam Deck](../README.md#install-on-a-steam-deck) section.
+`deckpip/system_vendor.py` resolves these from
+`<plugin_dir>/vendored/...` first and only falls back to whatever's on
+PATH.
+
+The TigerVNC/GameMirror half of that bundle is best-effort: it's built
+in CI inside an Arch/Holo container (`scripts/bundle-system-deps.sh`,
+`scripts/bundle-gst-plugins.sh`), smoke-tested there, but not validated
+against every SteamOS build. If a bundled binary doesn't run on yours
+(glibc/ABI mismatch — you'd see "error while loading shared libraries"
+in `journalctl -u plugin_loader -e` when a PiP session or GameMirror
+starts), fall back to the pacman path:
+
+```sh
+sudo bash /home/deck/homebrew/plugins/DeckPiP/defaults/install.sh
+sudo systemctl restart plugin_loader
+```
+
+`shutil.which` picks up the pacman-installed copy automatically once
+the bundled one is out of the picture (or just failing at exec time —
+resolution doesn't currently probe that the bundled binary actually
+runs, only that the file exists, so a broken bundle plus a working
+pacman install both being present will still prefer the broken bundled
+one; running the pacman install after removing
+`<plugin_dir>/vendored/tigervnc` or `.../gstreamer` guarantees the
+system copy wins).
 
 ## `pacman-key` errors during install
 
@@ -169,7 +208,11 @@ back: it spawns the pipeline with `target-object=…` first, and if the
 process exits within 0.5 s, it retries with `path=…`. If both fail,
 you'll see `pipewiresrc_failed` in the toast.
 
-Fix:
+The release zip normally bundles these plugins already (under
+`<plugin_dir>/vendored/gstreamer/gst-plugins-1.0`, picked up via
+`GST_PLUGIN_PATH` — see [Bundled dependencies](#bundled-dependencies-vs-the-pacman-fallback)).
+If that bundle is missing or didn't work for your SteamOS build, fall
+back to pacman:
 
 ```sh
 sudo steamos-readonly disable
@@ -181,10 +224,12 @@ Then verify:
 
 ```sh
 gst-inspect-1.0 pipewiresrc
+GST_PLUGIN_PATH=/home/deck/homebrew/plugins/DeckPiP/vendored/gstreamer/gst-plugins-1.0 \
+    gst-inspect-1.0 pipewiresrc   # checks the bundled copy specifically
 ```
 
 If that prints "No such element or plugin 'pipewiresrc'" — the
-package isn't installed.
+package isn't installed (or the bundle wasn't in the zip).
 
 ## "Xvnc launches but Discord (Flatpak) crashes immediately"
 

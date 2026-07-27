@@ -30,8 +30,77 @@ jobs:
       - name: Test
         run: python -m pytest tests/ -v
 
+  # Fetches noVNC + websockify + Ludusavi + rclone at build time instead of
+  # on the user's Deck (see scripts/fetch-vendored.py / deckpip/vendoring.py)
+  # so the release zip needs nothing downloaded separately on a fresh install.
+  vendor-portable:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch noVNC + websockify + Ludusavi + rclone
+        run: python3 scripts/fetch-vendored.py vendored-portable
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendored-portable
+          path: vendored-portable/vendored
+
+  # Bundles TigerVNC (Xvnc/vncpasswd) and the GameMirror GStreamer stack from
+  # an Arch/Holo container so the zip doesn't need `pacman -S tigervnc` etc.
+  # on a fresh Deck either. Best-effort: defaults/install.sh (pacman) stays
+  # as the fallback for a SteamOS build this bundle wasn't validated against
+  # — see docs/DECKY_STORE.md.
+  vendor-system:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    container: archlinux:base
+    steps:
+      - name: Install pacman deps
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux 2>/dev/null || true
+          pacman -Sy --needed --noconfirm archlinux-keyring
+          pacman -Su --needed --noconfirm \
+              git tigervnc wmctrl gst-plugin-pipewire gst-plugins-good patchelf
+
+      - uses: actions/checkout@v4
+
+      - name: Bundle TigerVNC
+        run: bash scripts/bundle-system-deps.sh vendored-system/tigervnc Xvnc vncpasswd
+
+      - name: Bundle GameMirror (GStreamer + wmctrl + xdotool)
+        run: bash scripts/bundle-gst-plugins.sh vendored-system/gstreamer
+
+      - name: Smoke-test bundled binaries load their shared libs
+        run: |
+          set -e
+          timeout 5 vendored-system/tigervnc/bin/Xvnc -help >/tmp/xvnc.out 2>&1 || true
+          timeout 5 vendored-system/tigervnc/bin/vncpasswd -f </dev/null >/tmp/vncpasswd.out 2>&1 || true
+          timeout 5 vendored-system/gstreamer/bin/gst-launch-1.0 --help >/tmp/gst.out 2>&1 || true
+          for f in /tmp/xvnc.out /tmp/vncpasswd.out /tmp/gst.out; do
+              if grep -qi "error while loading shared librar" "$f"; then
+                  echo "FATAL: dynamic linking failure:" >&2
+                  cat "$f" >&2
+                  exit 1
+              fi
+          done
+          echo "smoke test passed — bundled binaries resolve their shared libs"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendored-system
+          path: vendored-system
+
   frontend:
     runs-on: ubuntu-latest
+    needs: [vendor-portable, vendor-system]
+    if: ${{ !cancelled() }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +125,12 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Download vendored bundles
+        if: github.event_name != 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          path: vendored-artifacts
+
       - name: Pack DeckPiP.zip
         if: github.event_name != 'pull_request'
         run: |
@@ -66,6 +141,10 @@ jobs:
           cp -r plugin.json main.py deckpip defaults dist \
               package.json README.md LICENSE setup.sh \
               build-pack/DeckPiP/
+          mkdir -p build-pack/DeckPiP/vendored
+          cp -r vendored-artifacts/vendored-portable/. build-pack/DeckPiP/vendored/
+          cp -r vendored-artifacts/vendored-system/tigervnc build-pack/DeckPiP/vendored/tigervnc
+          cp -r vendored-artifacts/vendored-system/gstreamer build-pack/DeckPiP/vendored/gstreamer
           cd build-pack
           zip -qr DeckPiP.zip DeckPiP
           ls -la DeckPiP.zip
@@ -88,4 +167,10 @@ jobs:
             Automated build from the feature branch.
             Direct zip URL (works anonymously now that the repo is public):
             https://github.com/${{ github.repository }}/releases/download/dev/DeckPiP.zip
+
+            Bundled runtime deps — nothing else to download or pacman-install
+            in the common case: noVNC, websockify, Ludusavi, rclone, TigerVNC
+            (Xvnc/vncpasswd), and the GameMirror GStreamer stack. See
+            docs/DECKY_STORE.md for the pacman fallback if a bundled binary
+            doesn't run on your SteamOS build.
           files: build-pack/DeckPiP.zip

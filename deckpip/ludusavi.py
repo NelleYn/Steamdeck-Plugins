@@ -69,15 +69,39 @@ def resolve_binary(runtime_dir: Path) -> str | None:
     return shutil.which("ludusavi")
 
 
+def _bundled_root(plugin_dir: Path | str) -> Path:
+    """Where CI ships the pre-fetched binary inside the release zip."""
+    return Path(plugin_dir) / "vendored" / "ludusavi"
+
+
+def _bundled_binary(plugin_dir: Path | str) -> Path | None:
+    candidate = _bundled_root(plugin_dir) / "ludusavi"
+    return candidate if candidate.exists() and candidate.is_file() else None
+
+
 def default_backup_dir(runtime_dir: Path) -> Path:
     return Path(runtime_dir) / "ludusavi" / "backups"
 
 
-async def install(runtime_dir: Path, force: bool = False) -> dict:
+async def install(
+    runtime_dir: Path, force: bool = False, plugin_dir: Path | str | None = None,
+) -> dict:
     if binary_path(runtime_dir) is not None and not force:
         return {"ok": True, "skipped": True, "path": str(binary_path(runtime_dir))}
     root = _root(runtime_dir)
     root.mkdir(parents=True, exist_ok=True)
+
+    if plugin_dir is not None:
+        bundled = _bundled_binary(plugin_dir)
+        if bundled is not None:
+            dest = root / "ludusavi"
+            try:
+                await asyncio.to_thread(shutil.copy2, bundled, dest)
+                dest.chmod(0o755)
+            except Exception as exc:
+                return {"ok": False, "error": f"bundled_copy:{exc}"}
+            return {"ok": True, "path": str(dest), "source": "bundled"}
+
     try:
         asset = _asset_name()
     except RuntimeError as exc:
@@ -112,7 +136,7 @@ async def install(runtime_dir: Path, force: bool = False) -> dict:
     if bin_p is None:
         return {"ok": False, "error": "binary_missing_after_extract"}
     bin_p.chmod(0o755)
-    return {"ok": True, "path": str(bin_p)}
+    return {"ok": True, "path": str(bin_p), "source": "downloaded"}
 
 
 async def _run(

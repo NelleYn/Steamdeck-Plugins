@@ -6,6 +6,14 @@ unpack a pinned noVNC release tarball and pip-install websockify into
 once the directory exists we use it; ``rm -rf vendored`` forces a
 re-fetch.
 
+CI now pre-fetches the same tree at build time (``scripts/fetch-vendored.py``)
+and ships it inside the release zip under ``<plugin_dir>/vendored``. When
+that bundled copy is present, ``install_novnc``/``install_websockify`` copy
+it into the runtime dir instead of hitting the network — the whole point
+being that a fresh install needs nothing downloaded separately. The
+download path below stays as a fallback for dev checkouts / zips built
+without running the vendoring script.
+
 We keep two strategies live in parallel:
 
 * ``vendored_paths()`` — the preferred result, no pacman dep.
@@ -16,6 +24,7 @@ We keep two strategies live in parallel:
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import sys
 import tarfile
@@ -56,6 +65,23 @@ def status(runtime_dir: Path) -> dict:
     }
 
 
+def bundled_root(plugin_dir: Path | str) -> Path:
+    """Where CI ships the pre-fetched tree inside the release zip."""
+    return Path(plugin_dir) / "vendored"
+
+
+def bundled_novnc(plugin_dir: Path | str) -> Path | None:
+    p = bundled_root(plugin_dir) / NOVNC_DIRNAME
+    return p if (p / "vnc.html").exists() else None
+
+
+def bundled_websockify_root(plugin_dir: Path | str) -> Path | None:
+    """Root of a pre-built vendored websockify prefix shipped in the zip
+    (``vendored/python/bin/websockify`` + its site-packages)."""
+    p = bundled_root(plugin_dir) / "python"
+    return p if (p / "bin" / "websockify").exists() else None
+
+
 async def _download_tarball(url: str, dest: Path) -> None:
     def _fetch() -> None:
         with urllib.request.urlopen(url, timeout=60) as resp, dest.open("wb") as fh:
@@ -71,10 +97,26 @@ async def _extract_tarball(tarball: Path, into: Path) -> None:
     await asyncio.to_thread(_extract)
 
 
-async def install_novnc(runtime_dir: Path, force: bool = False) -> dict:
+async def install_novnc(
+    runtime_dir: Path, force: bool = False, plugin_dir: Path | str | None = None,
+) -> dict:
     target = vendored_root(runtime_dir) / NOVNC_DIRNAME
     if target.exists() and not force:
         return {"ok": True, "skipped": True, "path": str(target)}
+
+    if plugin_dir is not None:
+        bundled = bundled_novnc(plugin_dir)
+        if bundled is not None:
+            try:
+                await asyncio.to_thread(
+                    shutil.copytree, bundled, target, dirs_exist_ok=True,
+                )
+            except Exception as exc:
+                return {"ok": False, "error": f"bundled_copy:{exc}"}
+            if not (target / "vnc.html").exists():
+                return {"ok": False, "error": "vnc_html_missing_after_bundled_copy"}
+            return {"ok": True, "path": str(target), "source": "bundled"}
+
     root = vendored_root(runtime_dir)
     root.mkdir(parents=True, exist_ok=True)
     tarball = root / f"novnc-{NOVNC_VERSION}.tar.gz"
@@ -87,10 +129,12 @@ async def install_novnc(runtime_dir: Path, force: bool = False) -> dict:
         tarball.unlink(missing_ok=True)
     if not (target / "vnc.html").exists():
         return {"ok": False, "error": "vnc_html_missing_after_extract"}
-    return {"ok": True, "path": str(target)}
+    return {"ok": True, "path": str(target), "source": "downloaded"}
 
 
-async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
+async def install_websockify(
+    runtime_dir: Path, force: bool = False, plugin_dir: Path | str | None = None,
+) -> dict:
     """pip install websockify into a vendored prefix. Wraps the resulting
     bin/websockify with a launcher that sets PYTHONPATH so imports resolve
     from the vendored site-packages."""
@@ -98,6 +142,20 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
     bin_path = target / "bin" / "websockify"
     if bin_path.exists() and not force:
         return {"ok": True, "skipped": True, "path": str(bin_path)}
+
+    if plugin_dir is not None:
+        bundled = bundled_websockify_root(plugin_dir)
+        if bundled is not None:
+            try:
+                await asyncio.to_thread(
+                    shutil.copytree, bundled, target, dirs_exist_ok=True,
+                )
+            except Exception as exc:
+                return {"ok": False, "error": f"bundled_copy:{exc}"}
+            if not bin_path.exists():
+                return {"ok": False, "error": "binary_missing_after_bundled_copy"}
+            return {"ok": True, "path": str(bin_path), "source": "bundled"}
+
     target.mkdir(parents=True, exist_ok=True)
 
     proc = await asyncio.create_subprocess_exec(
@@ -114,6 +172,24 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
     except TimeoutError:
         proc.kill()
         return {"ok": False, "error": "pip_install_timeout"}
+
+    # SteamOS's Python (vanilla Arch build) installs `--prefix X` straight to
+    # X/bin + X/lib/pythonX.Y/site-packages. Debian-patched Python (e.g. the
+    # Ubuntu CI runner this same code runs on at build time, see
+    # scripts/fetch-vendored.py) inserts an extra "local/" segment and calls
+    # it "dist-packages" instead. Normalize whatever pip actually produced
+    # back to the canonical bin_path so resolution stays scheme-agnostic.
+    if proc.returncode == 0 and not bin_path.exists():
+        # rglob also matches the `dist-packages/websockify` *package dir* —
+        # skip anything that isn't the executable itself.
+        found = next(
+            (p for p in target.rglob("websockify") if p.is_file() and os.access(p, os.X_OK)),
+            None,
+        )
+        if found is not None:
+            bin_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(found), str(bin_path))
+
     if proc.returncode != 0 or not bin_path.exists():
         return {
             "ok": False, "error": "pip_failed",
@@ -122,10 +198,14 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
             "stdout": stdout.decode(errors="replace")[-500:],
         }
 
-    # bin/websockify imports the websockify package from
-    # lib/python3.X/site-packages, which isn't on PYTHONPATH by default.
-    # Locate the site-packages dir and bake a wrapper around the binary.
-    site_packages: list[Path] = list(target.glob("lib/python*/site-packages"))
+    # bin/websockify imports the websockify package from a site-/dist-packages
+    # dir, which isn't on PYTHONPATH by default. Locate it and bake a wrapper
+    # around the binary. dist-packages covers the Debian-patched scheme above.
+    site_packages: list[Path] = (
+        list(target.glob("lib/python*/site-packages"))
+        or list(target.rglob("site-packages"))
+        or list(target.rglob("dist-packages"))
+    )
     if site_packages:
         wrapper = bin_path.with_suffix(".real")
         if not wrapper.exists():
@@ -136,10 +216,12 @@ async def install_websockify(runtime_dir: Path, force: bool = False) -> dict:
                 f'exec "{wrapper}" "$@"\n'
             )
             bin_path.chmod(0o755)
-    return {"ok": True, "path": str(bin_path)}
+    return {"ok": True, "path": str(bin_path), "source": "downloaded"}
 
 
-async def install_all(runtime_dir: Path, force: bool = False) -> dict:
-    novnc = await install_novnc(runtime_dir, force)
-    ws = await install_websockify(runtime_dir, force)
+async def install_all(
+    runtime_dir: Path, force: bool = False, plugin_dir: Path | str | None = None,
+) -> dict:
+    novnc = await install_novnc(runtime_dir, force, plugin_dir)
+    ws = await install_websockify(runtime_dir, force, plugin_dir)
     return {"ok": novnc["ok"] and ws["ok"], "novnc": novnc, "websockify": ws}

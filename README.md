@@ -62,6 +62,13 @@ pnpm run build
 
 > The repository is public — anonymous install works in all three paths.
 
+> **Nothing to download or pacman-install separately.** CI bundles noVNC,
+> websockify, Ludusavi, rclone, TigerVNC (Xvnc/vncpasswd), and the optional
+> GameMirror GStreamer stack straight into the release zip (see
+> [Bundled dependencies](#bundled-dependencies) below). "Install
+> everything" / `defaults/install.sh` still exist as a manual/fallback
+> path, but a fresh install from path A works with zero extra taps.
+
 ### A. Decky "Install plugin from URL" (no terminal needed)
 
 In Gaming Mode → Quick Access → Decky panel → gear → **Developer**
@@ -71,9 +78,11 @@ tab → enable **Developer mode** → **Install plugin from URL**, paste:
 https://github.com/NelleYn/Steamdeck-Plugins/releases/download/dev/DeckPiP.zip
 ```
 
-CI republishes this on every push to the feature branch. After the
-plugin installs, open the DeckPiP panel and tap **Install everything**
-in **System** to fetch noVNC + websockify + Ludusavi + rclone.
+CI republishes this on every push to the feature branch. The plugin
+copies its bundled dependencies into place automatically on first load
+— open the DeckPiP panel and start a PiP session directly. (**System →
+Install everything** still exists if you want to force a re-fetch, or
+if you're on a zip built without the vendoring step.)
 
 ### B. One-shot installer (Desktop Mode)
 
@@ -81,8 +90,9 @@ in **System** to fetch noVNC + websockify + Ludusavi + rclone.
 curl -fsSL https://raw.githubusercontent.com/NelleYn/Steamdeck-Plugins/main/setup.sh | bash
 ```
 
-Installs build tools, clones, builds, copies, runs the pacman deps
-installer and restarts Decky. End to end.
+Installs build tools, clones, builds, copies, vendors noVNC/websockify/
+Ludusavi/rclone, runs the pacman deps installer, and restarts Decky.
+End to end.
 
 ### C. From an existing checkout
 
@@ -116,6 +126,40 @@ To build the same zip Decky consumes (path A) yourself:
 ```sh
 bash scripts/make-zip.sh   # produces build-pack/DeckPiP.zip
 ```
+
+`make-zip.sh` always vendors noVNC/websockify/Ludusavi/rclone; it also
+vendors TigerVNC + GameMirror's GStreamer stack when run on a host with
+`pacman` + `patchelf` (i.e. an Arch/Holo machine — CI's `vendor-system`
+job does this). Elsewhere it skips that part with a warning and the zip
+falls back to `defaults/install.sh` (pacman) for those two.
+
+## Bundled dependencies
+
+A fresh install needs nothing downloaded or pacman-installed separately
+in the common case — see the previous section for what's bundled and
+why. Mechanically:
+
+- `deckpip/vendoring.py`, `deckpip/ludusavi.py`, `deckpip/cloud_sync.py`
+  copy noVNC/websockify/Ludusavi/rclone from `<plugin_dir>/vendored/...`
+  (shipped inside the zip by `scripts/fetch-vendored.py`) into the
+  writable runtime dir on first plugin load — instant local copies, no
+  network. Falls back to the original download-on-demand behaviour when
+  that bundle isn't present (e.g. a from-source build without running
+  the vendoring script).
+- `deckpip/system_vendor.py` resolves TigerVNC (Xvnc/vncpasswd) and the
+  GameMirror stack (gst-launch-1.0, wmctrl, xdotool, and the
+  pipewiresrc/videoconvert/ximagesink plugin `.so`s) straight from
+  `<plugin_dir>/vendored/{tigervnc,gstreamer}` — built in CI inside an
+  Arch/Holo container by `scripts/bundle-system-deps.sh` and
+  `scripts/bundle-gst-plugins.sh`, which harvest each binary's
+  non-libc shared-library closure and rpath-patch it to find them via
+  `$ORIGIN`. Falls back to whatever's on `PATH` (i.e. a pacman install)
+  when the bundle is missing.
+- This TigerVNC/GameMirror half is best-effort: CI smoke-tests that the
+  bundled binaries actually load their shared libraries, but it isn't
+  validated against every SteamOS build. See
+  [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md#bundled-dependencies-vs-the-pacman-fallback)
+  for the pacman fallback if a bundled binary doesn't run on yours.
 
 ## Features
 
@@ -170,9 +214,12 @@ In rough priority order:
 
 1. `pnpm install && pnpm run build` on a real machine; fix whatever
    the rollup config complains about.
-2. Bootstrap script that fetches a portable KasmVNC tarball into
+2. ~~Bootstrap script that fetches a portable KasmVNC tarball into
    `DECKY_PLUGIN_RUNTIME_DIR`, so the plugin does not depend on
-   `pacman`-installed binaries on the immutable SteamOS root.
+   `pacman`-installed binaries on the immutable SteamOS root.~~ Done —
+   see [Bundled dependencies](#bundled-dependencies). Remaining risk:
+   the TigerVNC/GameMirror bundle is CI-built and smoke-tested, but not
+   yet validated on real Deck hardware.
 3. Whitelist + custom-command UI: let the user register their own
    apps in `apps.json` from the panel.
 4. Audio routing: create a per-session PulseAudio sink for the guest

@@ -81,6 +81,18 @@ else
     [[ -f dist/index.js ]] || die "Build did not produce dist/index.js"
 fi
 
+# --- 3b. vendor noVNC + websockify + Ludusavi + rclone --------------------
+# Best-effort: the release zip (install path A) ships these pre-fetched by
+# CI, but a from-source build (this script) doesn't have them yet. Fetch
+# them now so the panel's "Install everything" is instant instead of a
+# first-run download. Non-fatal — the plugin's own on-device download
+# fallback still works if this fails (offline build, flaky network, ...).
+if command -v python3 >/dev/null; then
+    say "vendoring noVNC + websockify + Ludusavi + rclone"
+    python3 scripts/fetch-vendored.py "$SRC_DIR" || \
+        say "vendoring failed (non-fatal) — will download on first panel use instead"
+fi
+
 # --- 4. install into Decky plugins dir -----------------------------------
 say "installing into ${PLUGIN_DIR}"
 sudo rm -rf "$PLUGIN_DIR"
@@ -90,6 +102,7 @@ find deckpip -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 sudo cp -r \
     plugin.json main.py deckpip defaults dist package.json README.md LICENSE setup.sh \
     "$PLUGIN_DIR/"
+[[ -d vendored ]] && sudo cp -r vendored "$PLUGIN_DIR/"
 sudo chown -R deck:deck "$PLUGIN_DIR"
 
 # --- 5. runtime dependencies (pacman) ------------------------------------

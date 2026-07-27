@@ -12,6 +12,8 @@ import signal
 import subprocess
 from pathlib import Path
 
+from deckpip.system_vendor import vncpasswd_path, xvnc_path
+
 DISPLAY = ":42"
 GEOMETRY = "1280x800"
 DEPTH = "24"
@@ -152,11 +154,13 @@ class PipSession:
         token: str,
         audio_only: bool,
         runtime_dir: Path,
+        plugin_dir: Path | str | None = None,
     ) -> None:
         self.app = app
         self.token = token
         self.audio_only = audio_only
         self.runtime_dir = Path(runtime_dir)
+        self.plugin_dir = plugin_dir
         self.xvnc: subprocess.Popen | None = None
         self.guest: subprocess.Popen | None = None
         self.websockify: subprocess.Popen | None = None
@@ -169,9 +173,13 @@ class PipSession:
 
         passwd_path = await self._write_vnc_passwd()
 
+        xvnc_bin = xvnc_path(self.plugin_dir)
+        if xvnc_bin is None:
+            raise FileNotFoundError("Xvnc")
+
         self.xvnc = subprocess.Popen(
             _as_user_argv([
-                "Xvnc", DISPLAY,
+                xvnc_bin, DISPLAY,
                 "-geometry", GEOMETRY,
                 "-depth", DEPTH,
                 "-SecurityTypes", "VncAuth",
@@ -215,8 +223,11 @@ class PipSession:
     async def _write_vnc_passwd(self) -> str:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         path = self.runtime_dir / "vncpasswd"
+        vncpasswd_bin = vncpasswd_path(self.plugin_dir)
+        if vncpasswd_bin is None:
+            raise FileNotFoundError("vncpasswd")
         proc = await asyncio.create_subprocess_exec(
-            "vncpasswd", "-f",
+            vncpasswd_bin, "-f",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

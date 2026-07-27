@@ -85,6 +85,11 @@ from deckpip.profiles import (
 from deckpip.ptt import send_key as _ptt_send_key
 from deckpip.session import PipSession, novnc_dir, terminate, websockify_argv
 from deckpip.settings import SettingsStore
+from deckpip.system_vendor import gst_launch_path as _gst_launch_path
+from deckpip.system_vendor import status as _system_vendor_status
+from deckpip.system_vendor import vncpasswd_path as _vncpasswd_path
+from deckpip.system_vendor import wmctrl_path as _wmctrl_path
+from deckpip.system_vendor import xvnc_path as _xvnc_path
 from deckpip.trackpad import (
     mouse_button as _mouse_button,
 )
@@ -184,26 +189,30 @@ class Plugin:
 
     async def check_dependencies(self) -> dict:
         rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
         return {
             # Required for any PiP session
-            "Xvnc": shutil.which("Xvnc") is not None,
-            "vncpasswd": shutil.which("vncpasswd") is not None,
+            "Xvnc": _xvnc_path(plugin_dir) is not None,
+            "vncpasswd": _vncpasswd_path(plugin_dir) is not None,
             "websockify": websockify_argv(rt) is not None,
             "novnc": novnc_dir(rt) is not None,
             "pactl": shutil.which("pactl") is not None,
             # Optional, for GameMirror only — surface separately so the panel
             # doesn't scream "missing" for a feature the user may not need.
-            "_optional_wmctrl": shutil.which("wmctrl") is not None,
-            "_optional_gst": shutil.which("gst-launch-1.0") is not None,
+            "_optional_wmctrl": _wmctrl_path(plugin_dir) is not None,
+            "_optional_gst": _gst_launch_path(plugin_dir) is not None,
             "_optional_pw-cli": shutil.which("pw-cli") is not None,
         }
 
     async def vendor_status(self) -> dict:
-        return _vendor_status(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+        status = _vendor_status(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+        status["system"] = _system_vendor_status(Path(decky.DECKY_PLUGIN_DIR))
+        return status
 
     async def install_vendored(self, force: bool = False) -> dict:
         return await _vendor_install(
             Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+            plugin_dir=Path(decky.DECKY_PLUGIN_DIR),
         )
 
     # ----- D-Bus notification mirror ---------------------------------------
@@ -260,6 +269,7 @@ class Plugin:
     async def ludusavi_install(self, force: bool = False) -> dict:
         return await _ludusavi_install(
             Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+            plugin_dir=Path(decky.DECKY_PLUGIN_DIR),
         )
 
     async def ludusavi_backup(self, game: str | None = None) -> dict:
@@ -294,6 +304,7 @@ class Plugin:
     async def rclone_install(self, force: bool = False) -> dict:
         return await _rclone_install(
             Path(decky.DECKY_PLUGIN_RUNTIME_DIR), force=force,
+            plugin_dir=Path(decky.DECKY_PLUGIN_DIR),
         )
 
     async def rclone_remotes(self) -> dict:
@@ -336,12 +347,15 @@ class Plugin:
         """Run the full one-tap setup: vendored noVNC+websockify, Ludusavi,
         rclone. Each step is independent — partial success is reported."""
         rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
         # The three downloads are independent, so fetch them concurrently
         # rather than serially — over slow Deck wifi this is ~3x faster.
+        # Each one prefers a bundled copy shipped in the zip over the network
+        # when present, so this is usually instant local copies, not downloads.
         vendored, ludusavi, rclone = await asyncio.gather(
-            _vendor_install(rt, force=False),
-            _ludusavi_install(rt, force=False),
-            _rclone_install(rt, force=False),
+            _vendor_install(rt, force=False, plugin_dir=plugin_dir),
+            _ludusavi_install(rt, force=False, plugin_dir=plugin_dir),
+            _rclone_install(rt, force=False, plugin_dir=plugin_dir),
         )
         results: dict = {
             "vendored": vendored,
@@ -366,12 +380,13 @@ class Plugin:
                 return {"ok": False, "error": "unknown_app"}
 
             rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+            plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
             # Pre-flight every dependency the session needs *before* we launch
             # Xvnc + the guest app, so a missing piece is reported up-front
             # instead of flashing the guest open and immediately killing it.
-            if shutil.which("Xvnc") is None:
+            if _xvnc_path(plugin_dir) is None:
                 return {"ok": False, "error": "missing_dependency:Xvnc"}
-            if shutil.which("vncpasswd") is None:
+            if _vncpasswd_path(plugin_dir) is None:
                 return {"ok": False, "error": "missing_dependency:vncpasswd"}
             if not audio_only:
                 if novnc_dir(rt) is None:
@@ -385,7 +400,7 @@ class Plugin:
             token = secrets.token_urlsafe(8)
             session = PipSession(
                 app, token, audio_only=audio_only,
-                runtime_dir=rt,
+                runtime_dir=rt, plugin_dir=plugin_dir,
             )
             try:
                 await session.start()
@@ -424,7 +439,9 @@ class Plugin:
             if self.session.mirror is not None:
                 return {"ok": False, "error": "already_mirroring"}
             try:
-                self.session.mirror = await start_mirror_window()
+                self.session.mirror = await start_mirror_window(
+                    Path(decky.DECKY_PLUGIN_DIR),
+                )
             except FileNotFoundError as exc:
                 return {"ok": False, "error": f"missing_dependency:{exc.args[0]}"}
             except RuntimeError as exc:
@@ -504,7 +521,9 @@ class Plugin:
     # ----- diagnostics ------------------------------------------------------
 
     async def diagnostics(self) -> dict:
-        return await _diagnostics_collect(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
+        return await _diagnostics_collect(
+            Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_DIR),
+        )
 
     # ----- push-to-talk -----------------------------------------------------
 
@@ -526,6 +545,27 @@ class Plugin:
     async def _main(self) -> None:
         self._lock = asyncio.Lock()
         decky.logger.info("DeckPiP loaded")
+        asyncio.create_task(self._bootstrap_bundled_vendored())
+
+    async def _bootstrap_bundled_vendored(self) -> None:
+        """If the release zip ships bundled runtime deps (noVNC, websockify,
+        Ludusavi, rclone — see scripts/fetch-vendored.py), copy them into the
+        writable runtime dir on first load. Without this the same install_*
+        calls only run when the user taps "Install everything", which would
+        defeat the point of vendoring them into the zip at build time: a
+        fresh install should need nothing fetched or installed separately."""
+        plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
+        if not (plugin_dir / "vendored").exists():
+            return
+        rt = Path(decky.DECKY_PLUGIN_RUNTIME_DIR)
+        try:
+            await asyncio.gather(
+                _vendor_install(rt, force=False, plugin_dir=plugin_dir),
+                _ludusavi_install(rt, force=False, plugin_dir=plugin_dir),
+                _rclone_install(rt, force=False, plugin_dir=plugin_dir),
+            )
+        except Exception:
+            decky.logger.exception("bundled vendored bootstrap failed")
 
     async def _unload(self) -> None:
         if self._notif_mirror is not None:
