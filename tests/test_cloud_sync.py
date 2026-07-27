@@ -83,6 +83,55 @@ def test_safe_extract_zip_rejects_traversal(tmp_path: Path) -> None:
     assert not (tmp_path / "escape.txt").exists()
 
 
+# ---- bundled (shipped-in-zip) resolution ---------------------------------
+
+
+def test_bundled_binary_none_when_absent(tmp_path: Path) -> None:
+    assert cloud_sync._bundled_binary(tmp_path) is None
+
+
+def test_bundled_binary_detected(tmp_path: Path) -> None:
+    sub = cloud_sync._bundled_root(tmp_path) / "rclone-vX-linux-amd64"
+    sub.mkdir(parents=True)
+    bin_p = sub / "rclone"
+    bin_p.write_text("#!/bin/sh\necho fake\n")
+    bin_p.chmod(0o755)
+    assert cloud_sync._bundled_binary(tmp_path) == bin_p
+
+
+@pytest.mark.asyncio
+async def test_install_uses_bundled_copy_without_network(tmp_path: Path, monkeypatch) -> None:
+    plugin_dir = tmp_path / "plugin"
+    sub = cloud_sync._bundled_root(plugin_dir) / "rclone-vX-linux-amd64"
+    sub.mkdir(parents=True)
+    bin_p = sub / "rclone"
+    bin_p.write_text("#!/bin/sh\necho fake\n")
+    bin_p.chmod(0o755)
+    runtime_dir = tmp_path / "runtime"
+
+    def _boom(*_a, **_kw):
+        raise AssertionError("should not hit the network when a bundled copy exists")
+
+    monkeypatch.setattr(cloud_sync.urllib.request, "urlopen", _boom)
+
+    res = await cloud_sync.install(runtime_dir, plugin_dir=plugin_dir)
+    assert res["ok"] is True
+    assert res["source"] == "bundled"
+    assert Path(res["path"]).exists()
+    assert cloud_sync.binary_path(runtime_dir) == Path(res["path"])
+
+
+@pytest.mark.asyncio
+async def test_install_skips_when_already_installed(tmp_path: Path) -> None:
+    sub = cloud_sync._root(tmp_path) / "rclone-vX-linux-amd64"
+    sub.mkdir(parents=True)
+    bin_p = sub / "rclone"
+    bin_p.write_text("x")
+    bin_p.chmod(0o755)
+    res = await cloud_sync.install(tmp_path)
+    assert res == {"ok": True, "skipped": True, "path": str(bin_p)}
+
+
 def test_safe_extract_zip_extracts_normal_members(tmp_path: Path) -> None:
     archive = tmp_path / "ok.zip"
     with zipfile.ZipFile(archive, "w") as zf:

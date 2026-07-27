@@ -1,6 +1,9 @@
 node_modules/
 dist/
 build-pack/
+vendored/
+vendored-portable/
+vendored-system/
 .pnpm-store/
 *.log
 .DS_Store

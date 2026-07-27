@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# DeckPiP runtime-dependency installer.
+# DeckPiP runtime-dependency installer — the pacman FALLBACK.
+#
+# The release zip normally bundles TigerVNC (Xvnc/vncpasswd) and the
+# GameMirror GStreamer stack already (see scripts/bundle-system-deps.sh,
+# scripts/bundle-gst-plugins.sh, deckpip/system_vendor.py), so most
+# installs never need this script at all. It exists for the cases the
+# bundle doesn't cover: a SteamOS build the CI bundle wasn't validated
+# against, a zip built without the vendoring step, or a from-source
+# checkout where the user prefers the pacman path.
 #
 # Invoked by the plugin backend (Plugin.install_dependencies) running as
 # root. Also runnable by hand in Desktop Mode for users who prefer the

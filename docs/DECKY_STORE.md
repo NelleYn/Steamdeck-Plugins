@@ -31,14 +31,25 @@ https://github.com/NelleYn/Steamdeck-Plugins/releases/download/dev/DeckPiP.zip
 
 CI publishes this on every push to the feature branch.
 
-### Pacman footprint — small, vendorable
+### Pacman footprint — now vendored, pacman kept as fallback
 
-Required pacman set is one package: `tigervnc`. Optional GameMirror
-packages are three more, but a session without GameMirror runs
-without them.
+Previously the required pacman set was one package (`tigervnc`), plus
+three optional ones for GameMirror. As of this vendoring pass, CI
+bundles all four straight into the release zip instead:
+`scripts/bundle-system-deps.sh` harvests `Xvnc`/`vncpasswd` (and
+`scripts/bundle-gst-plugins.sh` harvests `gst-launch-1.0`, `wmctrl`,
+`xdotool`, and the `pipewiresrc`/`videoconvert`/`ximagesink` plugin
+`.so`s) inside an Arch/Holo container, each rpath-patched to find its
+non-libc shared-library closure via `$ORIGIN` instead of pacman.
+`deckpip/system_vendor.py` resolves these first at runtime.
 
-The remaining `tigervnc` could be vendored as a static build to drop
-the pacman dependency to zero — out of scope for now.
+This is best-effort, not hardware-validated: CI smoke-tests that each
+bundled binary actually loads its shared libraries (see the
+`vendor-system` job in `.github/workflows/build.yml`), but a SteamOS
+build the bundle wasn't built against could still fail at exec time
+with a glibc/ABI mismatch. `defaults/install.sh` (pacman) stays as the
+automatic fallback for that case — see
+[`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md#bundled-dependencies-vs-the-pacman-fallback).
 
 ## Soft requirements met
 

@@ -11,10 +11,16 @@ import asyncio
 import contextlib
 import logging
 import os
-import shutil
 import subprocess
+from pathlib import Path
 
 from deckpip.session import DISPLAY, _as_user_argv
+from deckpip.system_vendor import (
+    gst_launch_path,
+    gst_plugin_env,
+    wmctrl_path,
+    xdotool_path,
+)
 
 log = logging.getLogger(__name__)
 
@@ -61,12 +67,12 @@ def parse_gamescope_node(pw_output: str) -> str | None:
     return name_only_candidate
 
 
-def gst_argv(node_id: str, prop: str = "target-object") -> list[str]:
+def gst_argv(gst_bin: str, node_id: str, prop: str = "target-object") -> list[str]:
     """Build the gst-launch-1.0 command line. PipeWire 1.0+ pipewiresrc uses
     ``target-object``; older versions use ``path``. We default to the new
     one and let the caller retry with the older one on failure."""
     return [
-        "gst-launch-1.0", "-q",
+        gst_bin, "-q",
         "pipewiresrc", f"{prop}={node_id}",
         "!", "videoconvert",
         "!", "ximagesink", "sync=false",
@@ -89,69 +95,76 @@ async def _spawn_pipeline(argv: list[str], env: dict) -> subprocess.Popen | None
     return proc
 
 
-async def start_mirror_window() -> subprocess.Popen:
+async def start_mirror_window(plugin_dir: str | Path | None = None) -> subprocess.Popen:
     """Spawn the gst pipeline mirroring gamescope into Xvnc :42.
 
     Returns the gstreamer Popen handle. Raises FileNotFoundError if
     gstreamer is missing, RuntimeError if no gamescope node was found
     or if pipewiresrc rejects both ``target-object`` and ``path``.
     """
-    if shutil.which("gst-launch-1.0") is None:
+    gst_bin = gst_launch_path(plugin_dir)
+    if gst_bin is None:
         raise FileNotFoundError("gstreamer")
     node_id = await find_gamescope_pw_node()
     if node_id is None:
         raise RuntimeError("no_gamescope_pw_node")
-    env = {**os.environ, "DISPLAY": DISPLAY}
+    env = gst_plugin_env(plugin_dir, {**os.environ, "DISPLAY": DISPLAY})
 
-    proc = await _spawn_pipeline(gst_argv(node_id, "target-object"), env)
+    proc = await _spawn_pipeline(gst_argv(gst_bin, node_id, "target-object"), env)
     if proc is None:
         log.warning("pipewiresrc target-object failed, retrying with path=")
-        proc = await _spawn_pipeline(gst_argv(node_id, "path"), env)
+        proc = await _spawn_pipeline(gst_argv(gst_bin, node_id, "path"), env)
     if proc is None:
         raise RuntimeError("pipewiresrc_failed")
 
-    await _rename_and_fullscreen(proc.pid, env)
+    await _rename_and_fullscreen(proc.pid, env, plugin_dir)
     return proc
 
 
-async def _rename_and_fullscreen(pid: int, env: dict) -> None:
+async def _rename_and_fullscreen(
+    pid: int, env: dict, plugin_dir: str | Path | None = None,
+) -> None:
     """Poll for ximagesink's window to appear, then rename + fullscreen it."""
-    if shutil.which("xdotool") is None:
+    xdotool_bin = xdotool_path(plugin_dir)
+    if xdotool_bin is None:
         log.warning("xdotool missing — GameMirror window will not be renamed")
         return
 
-    wid = await _find_window_for_pid(pid, env, deadline_seconds=4.0)
+    wid = await _find_window_for_pid(pid, env, xdotool_bin, deadline_seconds=4.0)
     if wid is None:
         log.warning("xdotool found no window for gst pid=%s within 4s", pid)
         return
 
     with contextlib.suppress(Exception):
         rename = await asyncio.create_subprocess_exec(
-            "xdotool", "set_window", "--name", "GameMirror", wid,
+            xdotool_bin, "set_window", "--name", "GameMirror", wid,
             env=env,
         )
         await rename.wait()
 
-    if shutil.which("wmctrl") is None:
+    wmctrl_bin = wmctrl_path(plugin_dir)
+    if wmctrl_bin is None:
         log.warning("wmctrl missing — GameMirror will not be fullscreen")
         return
 
     with contextlib.suppress(Exception):
         wm = await asyncio.create_subprocess_exec(
-            "wmctrl", "-r", "GameMirror", "-b", "add,fullscreen",
+            wmctrl_bin, "-r", "GameMirror", "-b", "add,fullscreen",
             env=env,
         )
         await wm.wait()
 
 
-async def _find_window_for_pid(pid: int, env: dict, deadline_seconds: float) -> str | None:
+async def _find_window_for_pid(
+    pid: int, env: dict, xdotool_bin: str, deadline_seconds: float,
+) -> str | None:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + deadline_seconds
     while loop.time() < deadline:
         await asyncio.sleep(0.2)
         try:
             search = await asyncio.create_subprocess_exec(
-                "xdotool", "search", "--pid", str(pid),
+                xdotool_bin, "search", "--pid", str(pid),
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,

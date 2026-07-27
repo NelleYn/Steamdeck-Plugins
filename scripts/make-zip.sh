@@ -6,6 +6,16 @@
 #   - inside the zip: exactly one top-level folder containing plugin.json
 #     (so paths look like "DeckPiP/plugin.json", "DeckPiP/main.py", ...)
 #
+# Also vendors the runtime deps into the zip so a fresh install needs
+# nothing downloaded or pacman-installed separately (see
+# scripts/fetch-vendored.py and deckpip/vendoring.py for the "why"):
+#   - noVNC, websockify, Ludusavi, rclone: fetched here on any machine.
+#   - TigerVNC (Xvnc/vncpasswd) + the GameMirror GStreamer stack: only
+#     bundled when this runs on an Arch/Holo host with pacman + patchelf
+#     (i.e. the CI vendor-system job) — see scripts/bundle-system-deps.sh
+#     and scripts/bundle-gst-plugins.sh. Skipped elsewhere with a warning;
+#     `defaults/install.sh` (pacman) remains the fallback for those.
+#
 # Output: build-pack/DeckPiP.zip relative to the repo root.
 
 set -euo pipefail
@@ -39,6 +49,19 @@ cp -r \
     LICENSE \
     setup.sh \
     "$OUT_DIR/$NAME/"
+
+echo "[make-zip] vendoring noVNC + websockify + Ludusavi + rclone"
+python3 scripts/fetch-vendored.py "$OUT_DIR/$NAME"
+
+if command -v pacman >/dev/null && command -v patchelf >/dev/null; then
+    echo "[make-zip] vendoring TigerVNC + GameMirror (Arch/Holo host detected)"
+    bash scripts/bundle-system-deps.sh "$OUT_DIR/$NAME/vendored/tigervnc" Xvnc vncpasswd
+    bash scripts/bundle-gst-plugins.sh "$OUT_DIR/$NAME/vendored/gstreamer"
+else
+    echo "[make-zip] skipping TigerVNC/GameMirror vendoring (needs pacman + patchelf," \
+        "i.e. an Arch/Holo host — CI's vendor-system job does this)." >&2
+    echo "[make-zip] the zip will fall back to defaults/install.sh (pacman) for those." >&2
+fi
 
 cd "$OUT_DIR"
 rm -f "$NAME.zip"

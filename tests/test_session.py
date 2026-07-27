@@ -122,3 +122,17 @@ async def test_stop_is_noop_when_vncpasswd_missing(tmp_path: Path) -> None:
     s = PipSession(app, "abc12345", audio_only=True, runtime_dir=tmp_path)
     # No file present.
     await s.stop()  # should not raise
+
+
+# ---- bundled/system binary resolution ------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_write_vnc_passwd_raises_when_vncpasswd_unresolvable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    app = {"id": "x", "label": "x", "command": ["xterm"]}
+    s = PipSession(app, "abc12345", audio_only=True, runtime_dir=tmp_path)
+    monkeypatch.setattr("deckpip.session.vncpasswd_path", lambda _plugin_dir: None)
+    with pytest.raises(FileNotFoundError):
+        await s._write_vnc_passwd()

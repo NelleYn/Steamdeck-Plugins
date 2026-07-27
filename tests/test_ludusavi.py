@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from deckpip import ludusavi
 
 
@@ -73,6 +75,55 @@ def test_summary_no_errors_when_all_succeed() -> None:
         "games": {"Game A": {"files": {"/a": {"failed": False}}}},
     })
     assert summary["errors"] == 0
+
+
+# ---- bundled (shipped-in-zip) resolution ---------------------------------
+
+
+def test_bundled_binary_none_when_absent(tmp_path: Path) -> None:
+    assert ludusavi._bundled_binary(tmp_path) is None
+
+
+def test_bundled_binary_detected(tmp_path: Path) -> None:
+    root = ludusavi._bundled_root(tmp_path)
+    root.mkdir(parents=True)
+    bin_p = root / "ludusavi"
+    bin_p.write_text("#!/bin/sh\necho fake\n")
+    bin_p.chmod(0o755)
+    assert ludusavi._bundled_binary(tmp_path) == bin_p
+
+
+@pytest.mark.asyncio
+async def test_install_uses_bundled_copy_without_network(monkeypatch, tmp_path: Path) -> None:
+    plugin_dir = tmp_path / "plugin"
+    bundled_root = ludusavi._bundled_root(plugin_dir)
+    bundled_root.mkdir(parents=True)
+    bundled_bin = bundled_root / "ludusavi"
+    bundled_bin.write_text("#!/bin/sh\necho fake\n")
+    bundled_bin.chmod(0o755)
+    runtime_dir = tmp_path / "runtime"
+
+    def _boom(*_a, **_kw):
+        raise AssertionError("should not hit the network when a bundled copy exists")
+
+    monkeypatch.setattr(ludusavi.urllib.request, "urlopen", _boom)
+
+    res = await ludusavi.install(runtime_dir, plugin_dir=plugin_dir)
+    assert res["ok"] is True
+    assert res["source"] == "bundled"
+    assert Path(res["path"]).exists()
+    assert ludusavi.binary_path(runtime_dir) == Path(res["path"])
+
+
+@pytest.mark.asyncio
+async def test_install_skips_when_already_installed(tmp_path: Path) -> None:
+    root = ludusavi._root(tmp_path)
+    root.mkdir(parents=True)
+    bin_p = root / "ludusavi"
+    bin_p.write_text("x")
+    bin_p.chmod(0o755)
+    res = await ludusavi.install(tmp_path)
+    assert res == {"ok": True, "skipped": True, "path": str(bin_p)}
 
 
 def test_summary_from_garbage_payload() -> None:
